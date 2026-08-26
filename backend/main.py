@@ -14,9 +14,19 @@ from auth import hash_password, verify_password, create_access_token, get_curren
 app = FastAPI(title="Pulse of Profit API")
 
 # Configure CORS
+origins = [
+    "https://pulseofprofit.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "*"
+]
+frontend_env = os.getenv("FRONTEND_URL")
+if frontend_env and frontend_env not in origins:
+    origins.append(frontend_env)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -26,7 +26,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://pulse-of-profit.onrender.com').replace(/\/$/, '');
 
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
