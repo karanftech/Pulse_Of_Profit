@@ -89,14 +89,17 @@ class CommentCreate(BaseModel):
     content: str
 
 class UserRegister(BaseModel):
-    name: str
-    mob_no: str
     email: EmailStr
-    password: str
+    name: Optional[str] = None
+    mob_no: Optional[str] = ""
+    password: Optional[str] = ""
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: Optional[str] = ""
+
+class EmailAuthRequest(BaseModel):
+    email: EmailStr
 
 class AdminRegister(BaseModel):
     name: str
@@ -123,16 +126,96 @@ class AuthResponse(BaseModel):
 
 # --- AUTH ENDPOINTS ---
 
+@app.post("/api/auth/email-auth", response_model=AuthResponse)
+def email_auth(req: EmailAuthRequest):
+    email = req.email.strip().lower()
+    found_user = None
+
+    if mongo_manager.is_connected and mongo_manager.db is not None:
+        users_col = mongo_manager.db["users"]
+        found_user = users_col.find_one({"email": email})
+    else:
+        for u in mongo_manager.in_memory_users:
+            if u["email"].lower() == email:
+                found_user = u
+                break
+
+    if found_user:
+        # Existing user - login
+        token = create_access_token({"sub": email})
+        user_profile = Profile(
+            email=found_user["email"],
+            name=found_user.get("name") or email.split("@")[0].capitalize(),
+            mob_no=found_user.get("mob_no", ""),
+            avatar=found_user.get("avatar") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}",
+            bio=found_user.get("bio", "Member of Pulse of Profit community.")
+        )
+        return AuthResponse(access_token=token, user=user_profile)
+    else:
+        # New user - register
+        display_name = email.split("@")[0].capitalize()
+        avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}"
+        user_doc = {
+            "email": email,
+            "name": display_name,
+            "mob_no": "",
+            "hashed_password": "",
+            "avatar": avatar,
+            "bio": "Member of Pulse of Profit community.",
+            "role": "user",
+            "created_at": datetime.now()
+        }
+        if mongo_manager.is_connected and mongo_manager.db is not None:
+            users_col = mongo_manager.db["users"]
+            users_col.insert_one(user_doc)
+        else:
+            mongo_manager.in_memory_users.append(user_doc)
+
+        token = create_access_token({"sub": email})
+        user_profile = Profile(
+            email=email,
+            name=display_name,
+            mob_no="",
+            avatar=avatar,
+            bio="Member of Pulse of Profit community."
+        )
+        return AuthResponse(access_token=token, user=user_profile)
+
+
 @app.post("/api/auth/register", response_model=AuthResponse)
 def register(user_in: UserRegister):
-    email = user_in.email.lower()
-    hashed_pwd = hash_password(user_in.password)
-    avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user_in.name}"
+    email = user_in.email.strip().lower()
+    found_user = None
+
+    if mongo_manager.is_connected and mongo_manager.db is not None:
+        users_col = mongo_manager.db["users"]
+        found_user = users_col.find_one({"email": email})
+    else:
+        for u in mongo_manager.in_memory_users:
+            if u["email"].lower() == email:
+                found_user = u
+                break
+
+    if found_user:
+        # User already exists: Log them in seamlessly
+        token = create_access_token({"sub": email})
+        user_profile = Profile(
+            email=found_user["email"],
+            name=found_user.get("name") or (user_in.name if user_in.name else email.split("@")[0].capitalize()),
+            mob_no=found_user.get("mob_no", user_in.mob_no or ""),
+            avatar=found_user.get("avatar") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}",
+            bio=found_user.get("bio", "Member of Pulse of Profit community.")
+        )
+        return AuthResponse(access_token=token, user=user_profile)
+
+    display_name = user_in.name.strip() if user_in.name and user_in.name.strip() else email.split("@")[0].capitalize()
+    hashed_pwd = hash_password(user_in.password) if user_in.password else ""
+    avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={display_name}"
 
     user_doc = {
         "email": email,
-        "name": user_in.name,
-        "mob_no": user_in.mob_no,
+        "name": display_name,
+        "mob_no": user_in.mob_no or "",
         "hashed_password": hashed_pwd,
         "avatar": avatar,
         "bio": "Member of Pulse of Profit community.",
@@ -142,20 +225,15 @@ def register(user_in: UserRegister):
 
     if mongo_manager.is_connected and mongo_manager.db is not None:
         users_col = mongo_manager.db["users"]
-        if users_col.find_one({"email": email}):
-            raise HTTPException(status_code=400, detail="User with this email already exists")
         users_col.insert_one(user_doc)
     else:
-        for u in mongo_manager.in_memory_users:
-            if u["email"] == email:
-                raise HTTPException(status_code=400, detail="User with this email already exists")
         mongo_manager.in_memory_users.append(user_doc)
 
     token = create_access_token({"sub": email})
     user_profile = Profile(
         email=email,
-        name=user_in.name,
-        mob_no=user_in.mob_no,
+        name=display_name,
+        mob_no=user_in.mob_no or "",
         avatar=avatar,
         bio="Member of Pulse of Profit community."
     )
@@ -164,7 +242,7 @@ def register(user_in: UserRegister):
 
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(user_in: UserLogin):
-    email = user_in.email.lower()
+    email = user_in.email.strip().lower()
     found_user = None
 
     if mongo_manager.is_connected and mongo_manager.db is not None:
@@ -172,19 +250,40 @@ def login(user_in: UserLogin):
         found_user = users_col.find_one({"email": email})
     else:
         for u in mongo_manager.in_memory_users:
-            if u["email"] == email:
+            if u["email"].lower() == email:
                 found_user = u
                 break
 
-    if not found_user or not verify_password(user_in.password, found_user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not found_user:
+        # If user not registered yet, auto-register them
+        display_name = email.split("@")[0].capitalize()
+        avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}"
+        user_doc = {
+            "email": email,
+            "name": display_name,
+            "mob_no": "",
+            "hashed_password": hash_password(user_in.password) if user_in.password else "",
+            "avatar": avatar,
+            "bio": "Member of Pulse of Profit community.",
+            "role": "user",
+            "created_at": datetime.now()
+        }
+        if mongo_manager.is_connected and mongo_manager.db is not None:
+            users_col = mongo_manager.db["users"]
+            users_col.insert_one(user_doc)
+        else:
+            mongo_manager.in_memory_users.append(user_doc)
+        found_user = user_doc
+    elif user_in.password and found_user.get("hashed_password"):
+        if not verify_password(user_in.password, found_user["hashed_password"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token({"sub": email})
     user_profile = Profile(
         email=found_user["email"],
-        name=found_user["name"],
+        name=found_user.get("name") or email.split("@")[0].capitalize(),
         mob_no=found_user.get("mob_no", ""),
-        avatar=found_user["avatar"],
+        avatar=found_user.get("avatar") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}",
         bio=found_user.get("bio", "Member of Pulse of Profit community.")
     )
     return AuthResponse(access_token=token, user=user_profile)

@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Header from '@/components/Header';
 import ProfileSidebar from '@/components/ProfileSidebar';
 import ShareModal from '@/components/ShareModal';
-import { ArrowLeft, Heart, MessageSquare, Repeat2, Share2, Send, MoreHorizontal, X, Bookmark, Download, Sparkles, EyeOff, VolumeX, Ban, AlertTriangle, Link2, UserMinus, UserPlus } from 'lucide-react';
+import { ArrowLeft, Heart, MessageSquare, Repeat2, Share2, Send, MoreHorizontal, X, Bookmark, Download, Sparkles, AlertTriangle, Link2, UserMinus, UserPlus } from 'lucide-react';
 
 import { API_BASE_URL, useAuth } from '@/context/AuthContext';
 
@@ -513,47 +513,6 @@ export default function PostDetail() {
                         </button>
 
                         <hr className="border-white/10 my-1" />
-
-                        <button
-                          onClick={() => {
-                            showToast("Post hidden.");
-                            addActivity(`Hidden post ID ${post.id}`);
-                            setActiveThreeDotPostId(null);
-                            router.push('/');
-                          }}
-                          className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-white/10 text-left transition-colors"
-                        >
-                          <EyeOff className="w-4 h-4 text-[#A0A7B5]" />
-                          <span>Hide note</span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            saveMutedAuthors([...mutedAuthors, post.author]);
-                            showToast(`Muted all posts from ${post.author}`);
-                            addActivity(`Muted ${post.author}`);
-                            setActiveThreeDotPostId(null);
-                            router.push('/');
-                          }}
-                          className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-400 text-left transition-colors"
-                        >
-                          <VolumeX className="w-4 h-4 text-red-400" />
-                          <span>Mute</span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            saveBlockedAuthors([...blockedAuthors, post.author]);
-                            showToast(`Blocked ${post.author}`);
-                            addActivity(`Blocked ${post.author}`);
-                            setActiveThreeDotPostId(null);
-                            router.push('/');
-                          }}
-                          className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-400 text-left transition-colors font-medium text-red-500"
-                        >
-                          <Ban className="w-4 h-4 text-red-400" />
-                          <span>Block</span>
-                        </button>
 
                         <button
                           onClick={() => {

@@ -222,7 +222,7 @@ export default function Header({
               className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all"
             >
               <User className="w-3.5 h-3.5" />
-              <span>Register</span>
+              <span>Sign In / Register</span>
             </button>
           )}
         </div>

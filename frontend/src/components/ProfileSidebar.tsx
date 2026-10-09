@@ -8,7 +8,6 @@ import {
   Bookmark, 
   Settings, 
   LifeBuoy, 
-  LogOut, 
   Edit2, 
   Check, 
   ArrowLeft, 
@@ -71,7 +70,7 @@ export default function ProfileSidebar({
   setReportedPostIds
 }: ProfileSidebarProps) {
   const router = useRouter();
-  const { user, token, logout, updateUserProfile } = useAuth();
+  const { user, token, updateUserProfile } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(user);
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
@@ -79,10 +78,7 @@ export default function ProfileSidebar({
   const [isSaving, setIsSaving] = useState(false);
 
   // Sub-view panel state
-  const [activePanel, setActivePanel] = useState<'main' | 'saved' | 'settings' | 'support' | 'signout'>('main');
-
-  // Sign out / Signed in Simulation state
-  const [isSignedIn, setIsSignedIn] = useState(true);
+  const [activePanel, setActivePanel] = useState<'main' | 'saved' | 'settings' | 'support'>('main');
 
   // Settings sub-view states
   const [settingsNotify, setSettingsNotify] = useState(true);
@@ -269,30 +265,8 @@ export default function ProfileSidebar({
             </button>
           </div>
 
-          {!isSignedIn ? (
-            /* Logged Out view simulation */
-            <div className="py-12 text-center space-y-6">
-              <div className="w-16 h-16 rounded-full bg-black/5 dark:bg-white/5 mx-auto flex items-center justify-center border border-black/10 dark:border-white/5">
-                <LogOut className="w-8 h-8 text-text-muted" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-headline font-bold text-base text-text-light dark:text-white">Signed Out</h3>
-                <p className="text-xs text-text-muted max-w-xs mx-auto leading-relaxed">
-                  You have successfully logged out of Daily Bulletin by Pulse of Profit.
-                </p>
-              </div>
-              <button 
-                onClick={handleSignInSimulate}
-                className="px-6 py-2.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl shadow-md transition-all hover:scale-105"
-              >
-                Sign In Again
-              </button>
-            </div>
-          ) : (
-            /* Active Signed In Sub-views */
-            <>
-              {activePanel === 'main' && (
-                /* MAIN MENU VIEW */
+          {activePanel === 'main' && (
+            /* MAIN MENU VIEW */
                 <>
                   {/* User Profile Block */}
                   {profile && (
@@ -378,17 +352,6 @@ export default function ProfileSidebar({
                     >
                       <LifeBuoy className="w-4 h-4 text-text-muted" />
                       <span>Support Helpdesk</span>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        logout();
-                        onClose();
-                      }} 
-                      className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/5 text-left transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Sign out</span>
                     </button>
                   </nav>
                 </>
@@ -505,37 +468,6 @@ export default function ProfileSidebar({
                   </form>
                 </div>
               )}
-
-              {activePanel === 'signout' && (
-                /* SIGN OUT VERIFICATION VIEW */
-                <div className="space-y-6 pt-6 text-center">
-                  <div className="space-y-2">
-                    <h3 className="font-headline font-bold text-sm text-text-light dark:text-white">Confirm Sign Out</h3>
-                    <p className="text-xs text-text-muted max-w-[250px] mx-auto leading-relaxed">
-                      Are you sure you want to end your current session? You can sign back in anytime.
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-3 justify-center">
-                    <button 
-                      onClick={() => setActivePanel('main')}
-                      className="px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-xl text-xs font-semibold"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      onClick={() => {
-                        logout();
-                        onClose();
-                      }}
-                      className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl text-xs font-bold shadow-md"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
         </div>
 
         {/* Footer */}

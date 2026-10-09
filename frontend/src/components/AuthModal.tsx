@@ -1,44 +1,69 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, AlertCircle, LockKeyhole, Eye, EyeOff } from 'lucide-react';
+import { 
+  X, 
+  Mail, 
+  ArrowRight, 
+  AlertCircle, 
+  CheckCircle2
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthModal() {
-  const { user, isAuthModalOpen, closeAuthModal, register } = useAuth();
+  const { 
+    user, 
+    isAuthModalOpen, 
+    closeAuthModal, 
+    authenticateWithEmail 
+  } = useAuth();
   
-  const [name, setName] = useState('');
-  const [mobNo, setMobNo] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Play video smoothly when modal opens
+  useEffect(() => {
+    if (isAuthModalOpen && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isAuthModalOpen]);
 
   if (!isAuthModalOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMsg(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      if (!name.trim()) {
-        throw new Error('Please enter your full name');
-      }
-      if (!mobNo.trim()) {
-        throw new Error('Please enter your mobile number');
-      }
-      if (!email.trim()) {
-        throw new Error('Please enter your email address');
-      }
-      if (!password) {
-        throw new Error('Please enter your password');
-      }
-      await register(name, mobNo, email, password);
+      await authenticateWithEmail(cleanEmail);
+      setSuccessMsg('Authenticated successfully!');
     } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+      const msg = String(err.message || '').toLowerCase();
+      if (!msg.includes('already exists') && !msg.includes('exists')) {
+        setError(err.message || 'An error occurred. Please try again.');
+      } else {
+        setSuccessMsg('Welcome back!');
+      }
     } finally {
       setLoading(false);
     }
@@ -46,145 +71,126 @@ export default function AuthModal() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-lg">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto min-h-screen">
+        
+        {/* ================= BACKGROUND VIDEO OF LOGO ================= */}
+        <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+          <video
+            ref={videoRef}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover object-center filter brightness-100 contrast-105"
+          >
+            <source src="/logo-bg.mp4" type="video/mp4" />
+          </video>
+
+          {/* Very light edge gradient so the video is fully visible and vibrant */}
+          <div className="absolute inset-0 bg-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/30" />
+        </div>
+
+        {/* Modal Backdrop Click */}
+        <div 
+          className="fixed inset-0 z-10 cursor-pointer"
+          onClick={() => {
+            if (user) closeAuthModal();
+          }}
+        />
+
+        {/* ================= ULTRA-TRANSPARENT AUTH FORM CARD ================= */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 sm:p-7 text-white"
+          exit={{ opacity: 0, scale: 0.95, y: 16 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-20 w-full max-w-md my-auto rounded-3xl border border-white/20 bg-black/10 backdrop-blur-[2px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden text-white p-6 sm:p-8"
         >
-          {/* Background Glow */}
-          <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+          {/* Subtle cyan glow line across top */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#42E8FF] to-transparent opacity-80" />
 
-          {/* Close Button - Accessible to dismiss modal when logged in */}
-          {user && (
-            <button
-              onClick={closeAuthModal}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/60 p-2 rounded-xl transition-colors"
-              title="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {/* Dismiss / Close Button */}
+          <button
+            onClick={closeAuthModal}
+            className="absolute top-4 right-4 text-slate-200 hover:text-white bg-black/30 hover:bg-black/50 border border-white/20 p-2 rounded-xl transition-all z-30"
+            title="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-          {/* Title Header */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 text-slate-950 font-bold mb-3 shadow-lg shadow-emerald-500/20">
-              {!user ? <LockKeyhole className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
-            </div>
-            <h2 className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
-              User Registration
+          {/* Header */}
+          <div className="text-center mb-6 pt-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-display text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+              Welcome to Pulse of Profit
             </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
-              {!user
-                ? 'Register your account once to access the website and market dispatches.'
-                : 'Account registration'}
+            <p className="text-xs sm:text-sm text-slate-100 mt-2 leading-relaxed max-w-xs mx-auto drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] font-medium">
+              Enter your email to sign in or create an account. You'll be logged in automatically.
             </p>
           </div>
 
-          {/* Error Message */}
+          {/* Error Banner */}
           {error && (
-            <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 text-rose-400 text-xs sm:text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-rose-600/30 border border-rose-500/50 rounded-xl flex items-center gap-2.5 text-rose-100 text-xs sm:text-sm backdrop-blur-sm shadow-lg"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
               <span>{error}</span>
-            </div>
+            </motion.div>
           )}
 
-          {/* Form */}
+          {/* Success Banner */}
+          {successMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-emerald-600/30 border border-emerald-500/50 rounded-xl flex items-center gap-2.5 text-emerald-100 text-xs sm:text-sm backdrop-blur-sm shadow-lg"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-300" />
+              <span>{successMsg}</span>
+            </motion.div>
+          )}
+
+          {/* Email-Only Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Karan Sharma"
-                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                Mobile Number
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
-                <input
-                  type="tel"
-                  required
-                  value={mobNo}
-                  onChange={(e) => setMobNo(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-100 mb-1.5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
                 Email Address
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+              <div className="relative group">
+                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-200 group-focus-within:text-[#42E8FF] transition-colors drop-shadow" />
                 <input
                   type="email"
                   required
+                  autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full bg-black/25 border border-white/25 focus:border-[#42E8FF] focus:bg-black/45 focus:shadow-[0_0_20px_rgba(66,232,255,0.4)] rounded-xl py-3 pl-10 pr-4 text-white text-sm placeholder-slate-300 focus:outline-none transition-all drop-shadow"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-10 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-white transition-colors"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
+            {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              disabled={loading || !email.trim()}
+              className="w-full mt-3 py-3.5 px-4 relative overflow-hidden rounded-xl font-extrabold text-slate-950 flex items-center justify-center space-x-2 transition-all duration-300 disabled:opacity-50 cursor-pointer shadow-[0_0_30px_rgba(66,232,255,0.4)] group bg-gradient-to-r from-[#2D9CFF] via-[#42E8FF] to-[#4DFFB8] hover:shadow-[0_0_40px_rgba(66,232,255,0.7)]"
             >
+              {/* Button shimmer hover effect */}
+              <div className="absolute inset-0 w-1/2 h-full bg-white/25 skew-x-12 -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-in-out pointer-events-none" />
+
               {loading ? (
                 <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Register & Access Site</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>Continue with Email</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
-
           </form>
         </motion.div>
       </div>

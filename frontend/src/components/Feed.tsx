@@ -16,10 +16,7 @@ import {
   UserPlus, 
   Bookmark, 
   Download, 
-  Sparkles, 
-  EyeOff, 
-  VolumeX, 
-  Ban, 
+  Sparkles,
   AlertTriangle,
   Send
 } from 'lucide-react';
@@ -544,32 +541,6 @@ export default function Feed({
                               >
                                 <Download className="w-4 h-4 text-[#A0A7B5]" />
                                 <span>Save as image</span>
-                              </button>
-
-                              <hr className="border-white/10 my-1" />
-
-                              <button
-                                onClick={(e) => handleOptionHide(post.id, e)}
-                                className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-white/10 text-left transition-colors"
-                              >
-                                <EyeOff className="w-4 h-4 text-[#A0A7B5]" />
-                                <span>Hide note</span>
-                              </button>
-
-                              <button
-                                onClick={(e) => handleOptionMute(post.author, e)}
-                                className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-400 text-left transition-colors"
-                              >
-                                <VolumeX className="w-4 h-4 text-red-400" />
-                                <span>Mute author</span>
-                              </button>
-
-                              <button
-                                onClick={(e) => handleOptionBlock(post.author, e)}
-                                className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-400 text-left transition-colors font-medium"
-                              >
-                                <Ban className="w-4 h-4 text-red-400" />
-                                <span>Block author</span>
                               </button>
                             </div>
                           </>
