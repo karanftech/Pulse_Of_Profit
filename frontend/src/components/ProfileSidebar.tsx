@@ -8,6 +8,7 @@ import {
   Bookmark, 
   Settings, 
   LifeBuoy, 
+  LogOut, 
   Edit2, 
   Check, 
   ArrowLeft, 
@@ -70,7 +71,7 @@ export default function ProfileSidebar({
   setReportedPostIds
 }: ProfileSidebarProps) {
   const router = useRouter();
-  const { user, token, updateUserProfile } = useAuth();
+  const { user, token, logout, updateUserProfile } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(user);
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
@@ -208,16 +209,10 @@ export default function ProfileSidebar({
   };
 
   const handleSignOutConfirm = () => {
-    setIsSignedIn(false);
+    logout();
+    onClose();
     addActivity("Signed out of account");
     showSidebarToast("Signed out successfully");
-  };
-
-  const handleSignInSimulate = () => {
-    setIsSignedIn(true);
-    setActivePanel('main');
-    addActivity("Signed back into account");
-    showSidebarToast("Signed in as Karan");
   };
 
   if (!isOpen) return null;
@@ -352,6 +347,14 @@ export default function ProfileSidebar({
                     >
                       <LifeBuoy className="w-4 h-4 text-text-muted" />
                       <span>Support Helpdesk</span>
+                    </button>
+
+                    <button 
+                      onClick={handleSignOutConfirm} 
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 text-left transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 text-red-400" />
+                      <span>Sign out</span>
                     </button>
                   </nav>
                 </>
