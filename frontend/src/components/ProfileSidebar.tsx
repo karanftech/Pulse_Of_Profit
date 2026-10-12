@@ -2,13 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { 
   X, 
   Bookmark, 
-  Settings, 
-  LifeBuoy, 
-  LogOut, 
   Edit2, 
   Check, 
   ArrowLeft, 
@@ -30,6 +26,7 @@ import { Post, Comment } from '@/types/post';
 interface ProfileSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  initialPanel?: 'main' | 'settings' | 'support';
   apiBaseUrl: string;
   subscribedAuthors: string[];
   setSubscribedAuthors: (authors: string[]) => void;
@@ -52,6 +49,7 @@ interface ProfileSidebarProps {
 export default function ProfileSidebar({ 
   isOpen, 
   onClose, 
+  initialPanel = 'main',
   apiBaseUrl,
   subscribedAuthors,
   setSubscribedAuthors,
@@ -71,7 +69,7 @@ export default function ProfileSidebar({
   setReportedPostIds
 }: ProfileSidebarProps) {
   const router = useRouter();
-  const { user, token, logout, updateUserProfile } = useAuth();
+  const { user, token, updateUserProfile } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(user);
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
@@ -109,6 +107,10 @@ export default function ProfileSidebar({
       setNewBio(user.bio || '');
     }
   }, [user]);
+
+  useEffect(() => {
+    if (isOpen) setActivePanel(initialPanel);
+  }, [isOpen, initialPanel]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -206,13 +208,6 @@ export default function ProfileSidebar({
       setActivePanel('main');
       showSidebarToast("Support request sent!");
     }, 2000);
-  };
-
-  const handleSignOutConfirm = () => {
-    logout();
-    onClose();
-    addActivity("Signed out of account");
-    showSidebarToast("Signed out successfully");
   };
 
   if (!isOpen) return null;
@@ -329,34 +324,6 @@ export default function ProfileSidebar({
                     </button>
                   </nav>
 
-                  <hr className="border-black/10 dark:border-white/5 mb-6" />
-
-                  {/* Sub-menu items */}
-                  <nav className="space-y-1">
-                    <button 
-                      onClick={() => setActivePanel('settings')} 
-                      className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-text-light dark:text-text-dark hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
-                    >
-                      <Settings className="w-4 h-4 text-text-muted" />
-                      <span>Settings</span>
-                    </button>
-
-                    <button 
-                      onClick={() => setActivePanel('support')} 
-                      className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-text-light dark:text-text-dark hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
-                    >
-                      <LifeBuoy className="w-4 h-4 text-text-muted" />
-                      <span>Support Helpdesk</span>
-                    </button>
-
-                    <button 
-                      onClick={handleSignOutConfirm} 
-                      className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 text-left transition-colors"
-                    >
-                      <LogOut className="w-4 h-4 text-red-400" />
-                      <span>Sign out</span>
-                    </button>
-                  </nav>
                 </>
               )}
 
@@ -473,20 +440,6 @@ export default function ProfileSidebar({
               )}
         </div>
 
-        {/* Footer */}
-        <div className="pt-6 border-t border-black/10 dark:border-white/5">
-          <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-[10px] text-text-muted">
-            <Link href="#about" className="hover:underline">About</Link>
-            <span>•</span>
-            <Link href="#privacy" className="hover:underline">Privacy</Link>
-            <span>•</span>
-            <Link href="#terms" className="hover:underline">Terms</Link>
-            <span>•</span>
-            <Link href="#data" className="hover:underline">Data</Link>
-            <span>•</span>
-            <Link href="#accessibility" className="hover:underline">Accessibility</Link>
-          </div>
-        </div>
       </div>
     </>
   );

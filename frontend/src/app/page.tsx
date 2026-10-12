@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import PinnedPost from '@/components/PinnedPost';
 import Feed from '@/components/Feed';
-import FooterWidget from '@/components/FooterWidget';
 import ProfileSidebar from '@/components/ProfileSidebar';
+import LandingPage from '@/components/LandingPage';
+import FeedSidebar from '@/components/FeedSidebar';
+import FeedRightRail from '@/components/FeedRightRail';
 import { Newspaper } from 'lucide-react';
 
 import { API_BASE_URL, useAuth } from '@/context/AuthContext';
@@ -51,9 +53,11 @@ const fallbackPosts: Post[] = [
 ];
 
 export default function Home() {
+  const { user, token, isLoadingAuth, isLandingPageVisible, dismissLandingPage, openAuthModal } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profilePanel, setProfilePanel] = useState<'main' | 'settings' | 'support'>('main');
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   // Synchronized States
@@ -184,11 +188,18 @@ export default function Home() {
   // Fetch posts from FastAPI Backend
   useEffect(() => {
     const loadPosts = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
         
-        const res = await fetch(`${API_BASE_URL}/api/posts`, { signal: controller.signal });
+        const res = await fetch(`${API_BASE_URL}/api/posts`, {
+          signal: controller.signal,
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         clearTimeout(timeoutId);
 
         let basePosts: Post[] = [];
@@ -213,7 +224,7 @@ export default function Home() {
       }
     };
     loadPosts();
-  }, [customPosts.length]);
+  }, [customPosts.length, token]);
 
   // Handle Search button click in Header
   const handleSearchClick = () => {
@@ -240,22 +251,43 @@ export default function Home() {
   // Pinned post (ID 1)
   const pinnedPost = posts.find(p => p.id === "1") || fallbackPosts[0];
 
+  const canAccessFeed = Boolean(user) && !isLoadingAuth;
+  if (!canAccessFeed || isLandingPageVisible) {
+    return (
+      <LandingPage
+        onExplore={canAccessFeed ? dismissLandingPage : () => openAuthModal('login')}
+        onSignIn={canAccessFeed ? dismissLandingPage : () => openAuthModal('register')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#42E8FF] selection:text-black">
-      
-      {/* 1. STICKY NAVBAR */}
-      <Header 
-        onProfileClick={() => setIsProfileOpen(true)} 
-        isDarkMode={isDarkMode} 
-        toggleDarkMode={toggleDarkMode} 
-        onSearchClick={handleSearchClick}
-        notifications={notifications}
-        setNotifications={saveNotifications}
-        addActivity={addActivity}
-      />
+      <div className="xl:hidden">
+        <Header
+          onProfileClick={() => { setProfilePanel('main'); setIsProfileOpen(true); }}
+          isDarkMode={isDarkMode}
+          toggleDarkMode={toggleDarkMode}
+          onSearchClick={handleSearchClick}
+          notifications={notifications}
+          setNotifications={saveNotifications}
+          addActivity={addActivity}
+        />
+      </div>
 
-      {/* 2. NEWS & RESEARCH (PULSE OF PROFIT BULLETINS FEED) */}
-      <section id="bulletins-feed" className="py-12 px-4 max-w-7xl mx-auto">
+      <div className="mx-auto grid min-h-screen w-full grid-cols-1 gap-6 px-4 xl:grid-cols-[220px_minmax(0,1fr)_320px] xl:justify-between 2xl:grid-cols-[250px_710px_465px] 2xl:gap-5 2xl:px-8">
+        <FeedSidebar
+          notifications={notifications}
+          setNotifications={saveNotifications}
+          onProfileClick={() => { setProfilePanel('main'); setIsProfileOpen(true); }}
+          onExploreClick={handleSearchClick}
+          onSettingsClick={() => { setProfilePanel('settings'); setIsProfileOpen(true); }}
+          onSupportClick={() => { setProfilePanel('support'); setIsProfileOpen(true); }}
+          addActivity={addActivity}
+        />
+
+      {/* NEWS & RESEARCH (PULSE OF PROFIT BULLETINS FEED) */}
+      <section id="bulletins-feed" className="w-full min-w-0 py-8 xl:py-7">
         
         {/* Feed Title */}
         <div className="flex flex-col space-y-2 mb-6 sm:mb-8">
@@ -301,20 +333,19 @@ export default function Home() {
               reportedPostIds={reportedPostIds}
               setReportedPostIds={saveReportedPostIds}
               addActivity={addActivity}
-              customPosts={customPosts}
-              setCustomPosts={saveCustomPosts}
             />
           </div>
         )}
       </section>
 
-      {/* 12. FOOTER */}
-      <FooterWidget />
+        <FeedRightRail onSearchClick={handleSearchClick} />
+      </div>
 
       {/* PROFILE SIDEBAR DRAWER */}
       <ProfileSidebar 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)} 
+        initialPanel={profilePanel}
         apiBaseUrl={API_BASE_URL} 
         subscribedAuthors={subscribedAuthors}
         setSubscribedAuthors={saveSubscribedAuthors}

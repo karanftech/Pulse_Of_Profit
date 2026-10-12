@@ -138,6 +138,20 @@ Follow these steps to set up and run both the backend and frontend services loca
    ```
    *The frontend application will be live at `http://localhost:3000`.*
 
+### Cloudflare Images (Optional)
+
+Image uploads can be stored in Cloudflare Images. Create a Cloudflare API token with **Images: Edit** permission, then add these values to `backend/.env`:
+
+```env
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_IMAGES_API_TOKEN=your_images_edit_token
+CLOUDFLARE_IMAGES_VARIANT=public
+```
+
+Restart the backend after setting the variables. User and admin image uploads will then be stored in Cloudflare Images and served from the returned delivery URL. Video uploads continue to use the backend's local uploads folder. If the Cloudflare variables are left unset, images continue to use local storage for development.
+
+See Cloudflare's [Images upload guide](https://developers.cloudflare.com/images/storage/upload-images/upload-url/) and [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/).
+
 ---
 
 ## 🌐 Summary of Local Endpoints

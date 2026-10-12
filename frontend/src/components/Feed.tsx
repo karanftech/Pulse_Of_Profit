@@ -7,7 +7,6 @@ import {
   MessageSquare, 
   Repeat2, 
   Share2, 
-  Search,
   MoreHorizontal, 
   X, 
   Plus, 
@@ -39,8 +38,6 @@ interface FeedProps {
   mutedAuthors: string[];
   setMutedAuthors: (authors: string[]) => void;
   addActivity: (message: string) => void;
-  customPosts: Post[];
-  setCustomPosts: (posts: Post[]) => void;
   reportedPostIds: string[];
   setReportedPostIds: (ids: string[]) => void;
 }
@@ -58,15 +55,11 @@ export default function Feed({
   mutedAuthors,
   setMutedAuthors,
   addActivity,
-  customPosts,
-  setCustomPosts,
   reportedPostIds,
   setReportedPostIds
 }: FeedProps) {
   const router = useRouter();
   const { token, openAuthModal } = useAuth();
-  const [activeTab, setActiveTab] = useState<'latest' | 'top' | 'discussions'>('latest');
-  const [searchQuery, setSearchQuery] = useState('');
   
   // Interactive UI states
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -86,36 +79,6 @@ export default function Feed({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const fetchPosts = async () => {
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/posts${activeTab === 'top' ? '?sort=top' : ''}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(data);
-      }
-    } catch (err) {
-      console.error('Error fetching posts:', err);
-    }
-  };
-
-  // Handle Tab Switch
-  const handleTabChange = async (tab: 'latest' | 'top' | 'discussions') => {
-    setActiveTab(tab);
-    let url = `${apiBaseUrl}/api/posts`;
-    if (tab === 'top') {
-      url += '?sort=top';
-    }
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setPosts([...customPosts, ...data]);
-      }
-    } catch (err) {
-      console.error("Error fetching sorted posts:", err);
-    }
-  };
-
   // Handle Like Increment
   const handleLike = async (postId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -123,6 +86,7 @@ export default function Feed({
     try {
       const res = await fetch(`${apiBaseUrl}/api/posts/${postId}/like`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (res.ok) {
         const updatedPost = await res.json();
@@ -157,6 +121,7 @@ export default function Feed({
     try {
       const res = await fetch(`${apiBaseUrl}/api/posts/${postId}/repost`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (res.ok) {
         const updatedPost = await res.json();
@@ -339,14 +304,7 @@ export default function Feed({
     addActivity(`Submitted hide reason for post ID ${postId}: ${reason}`);
   };
 
-  // Filter posts
-  const filteredPosts = posts.filter(post => 
-    post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.date.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const visiblePosts = filteredPosts.filter(post => 
+  const visiblePosts = posts.filter(post => 
     !blockedAuthors.includes(post.author) && 
     !mutedAuthors.includes(post.author) &&
     !reportedPostIds.includes(post.id) &&
@@ -376,42 +334,6 @@ export default function Feed({
         title={shareTitle} 
         showToast={showToast} 
       />
-
-      {/* Navigation Tabs and Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between border-b border-white/10 pb-4 gap-4">
-        <div className="flex w-full sm:w-auto justify-center sm:justify-start space-x-1 p-1 bg-[#0D1624]/80 backdrop-blur-md rounded-[20px] border border-white/10">
-          {(['latest', 'top', 'discussions'] as const).map((tab) => (
-            <button 
-              key={tab}
-              onClick={() => handleTabChange(tab)}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all ${
-                activeTab === tab 
-                  ? 'btn-cyan-gradient shadow-[0_0_15px_rgba(66,232,255,0.3)]' 
-                  : 'text-[#A0A7B5] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Search Bar */}
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0A7B5]">
-              <Search className="w-4 h-4" />
-            </span>
-            <input 
-              id="search-input"
-              type="text" 
-              placeholder="Search bulletins & analysis..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0D1624] border border-white/10 rounded-[20px] pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#A0A7B5] focus:outline-none focus:border-[#42E8FF] shadow-inner transition-colors"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* AI Scanning Alert */}
       {aiScanningPostId && (

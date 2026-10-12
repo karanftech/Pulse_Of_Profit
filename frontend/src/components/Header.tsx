@@ -24,7 +24,7 @@ export default function Header({
   setNotifications = () => {},
   addActivity = () => {}
 }: HeaderProps) {
-  const { user, logout, openAuthModal } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
 

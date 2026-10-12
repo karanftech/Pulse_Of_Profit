@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import FooterWidget from '@/components/FooterWidget';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -35,6 +34,8 @@ import {
 } from 'lucide-react';
 
 import { API_BASE_URL } from '@/context/AuthContext';
+
+const ADMIN_SESSION_DURATION_MS = 48 * 60 * 1000;
 
 
 interface StatData {
@@ -145,12 +146,44 @@ export default function VyavasthapakAdminPage() {
   useEffect(() => {
     const savedToken = localStorage.getItem('vyavasthapak_token');
     if (savedToken) {
+      const expiresAt = Number(localStorage.getItem('vyavasthapak_session_expires_at'));
+      if (expiresAt && expiresAt <= Date.now()) {
+        localStorage.removeItem('vyavasthapak_token');
+        localStorage.removeItem('vyavasthapak_session_expires_at');
+        checkHasAdmin();
+        return;
+      }
+      if (!expiresAt) {
+        localStorage.setItem('vyavasthapak_session_expires_at', String(Date.now() + ADMIN_SESSION_DURATION_MS));
+      }
       setIsAuthenticated(true);
       fetchDashboardData();
     } else {
       checkHasAdmin();
     }
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const expiresAt = Number(localStorage.getItem('vyavasthapak_session_expires_at'));
+    const expireAdminSession = () => {
+      if (Date.now() < expiresAt) return;
+      localStorage.removeItem('vyavasthapak_token');
+      localStorage.removeItem('vyavasthapak_session_expires_at');
+      setIsAuthenticated(false);
+      checkHasAdmin();
+    };
+    const timeout = window.setTimeout(expireAdminSession, Math.max(0, expiresAt - Date.now()));
+    window.addEventListener('focus', expireAdminSession);
+    document.addEventListener('visibilitychange', expireAdminSession);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('focus', expireAdminSession);
+      document.removeEventListener('visibilitychange', expireAdminSession);
+    };
+  }, [isAuthenticated]);
 
   const checkHasAdmin = async () => {
     try {
@@ -189,6 +222,7 @@ export default function VyavasthapakAdminPage() {
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('vyavasthapak_token', data.access_token);
+        localStorage.setItem('vyavasthapak_session_expires_at', String(Date.now() + ADMIN_SESSION_DURATION_MS));
         setIsAuthenticated(true);
         showToast('Admin Registered & Authenticated!');
         fetchDashboardData();
@@ -218,6 +252,7 @@ export default function VyavasthapakAdminPage() {
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('vyavasthapak_token', data.access_token);
+        localStorage.setItem('vyavasthapak_session_expires_at', String(Date.now() + ADMIN_SESSION_DURATION_MS));
         setIsAuthenticated(true);
         showToast('Authenticated into Vyavasthapak Admin Panel');
         fetchDashboardData();
@@ -230,11 +265,6 @@ export default function VyavasthapakAdminPage() {
     } finally {
       setAuthLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('vyavasthapak_token');
-    setIsAuthenticated(false);
   };
 
   const getAdminHeaders = () => {
@@ -414,7 +444,7 @@ export default function VyavasthapakAdminPage() {
           formData.append('files', file);
         });
 
-        const uploadRes = await fetch(`${API_BASE_URL}/api/upload-multiple`, {
+        const uploadRes = await fetch(`${API_BASE_URL}/api/vyavasthapak/upload-multiple`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('vyavasthapak_token') || ''}`
@@ -495,16 +525,6 @@ export default function VyavasthapakAdminPage() {
             </div>
           </div>
 
-          {isAuthenticated && (
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleLogout}
-                className="px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors"
-              >
-                Exit Portal
-              </button>
-            </div>
-          )}
         </div>
       </header>
 
@@ -1205,8 +1225,6 @@ export default function VyavasthapakAdminPage() {
         </main>
       )}
 
-      {/* Footer */}
-      <FooterWidget />
     </div>
   );
 }

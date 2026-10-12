@@ -1,6 +1,8 @@
 import os
 import uuid
 import shutil
+import mimetypes
+import httpx
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,7 +11,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from database import mongo_manager, init_db
-from auth import hash_password, verify_password, create_access_token, get_current_user_email, verify_admin_token
+from auth import hash_password, verify_password, create_access_token, get_current_user_email, require_current_user_email, verify_admin_token
 
 app = FastAPI(title="Pulse of Profit API")
 
@@ -36,6 +38,76 @@ app.add_middleware(
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+CLOUDFLARE_IMAGES_API_TOKEN = os.getenv("CLOUDFLARE_IMAGES_API_TOKEN", "").strip()
+CLOUDFLARE_IMAGES_VARIANT = os.getenv("CLOUDFLARE_IMAGES_VARIANT", "public").strip() or "public"
+
+
+def is_image_upload(file: UploadFile) -> bool:
+    content_type = (file.content_type or "").lower()
+    extension = os.path.splitext(file.filename or "")[1].lower()
+    return content_type.startswith("image/") or extension in {
+        ".avif", ".bmp", ".gif", ".heic", ".heif", ".jpeg", ".jpg",
+        ".png", ".svg", ".tif", ".tiff", ".webp",
+    }
+
+
+async def store_uploaded_file(file: UploadFile) -> str:
+    """Store images in Cloudflare Images when configured, otherwise locally.
+
+    Non-image media such as videos continue to use local uploads.
+    """
+    has_account = bool(CLOUDFLARE_ACCOUNT_ID)
+    has_token = bool(CLOUDFLARE_IMAGES_API_TOKEN)
+    if has_account != has_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Cloudflare Images is partially configured. Set both account ID and API token.",
+        )
+
+    if is_image_upload(file) and has_account and has_token:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="The uploaded image is empty.")
+
+        content_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+        endpoint = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/images/v1"
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    endpoint,
+                    headers={"Authorization": f"Bearer {CLOUDFLARE_IMAGES_API_TOKEN}"},
+                    data={"requireSignedURLs": "false"},
+                    files={"file": (os.path.basename(file.filename or "image"), content, content_type)},
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Could not reach Cloudflare Images.") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Cloudflare Images returned an invalid response.") from exc
+
+        if not response.is_success or not payload.get("success"):
+            errors = payload.get("errors") or []
+            detail = errors[0].get("message") if errors and isinstance(errors[0], dict) else None
+            raise HTTPException(status_code=502, detail=detail or "Cloudflare Images rejected the upload.")
+
+        result = payload.get("result") or {}
+        variants = result.get("variants") or []
+        if not variants:
+            raise HTTPException(status_code=502, detail="Cloudflare Images did not return a delivery URL.")
+
+        requested_suffix = f"/{CLOUDFLARE_IMAGES_VARIANT}"
+        return next((url for url in variants if url.rstrip("/").endswith(requested_suffix)), variants[0])
+
+    extension = os.path.splitext(os.path.basename(file.filename or ""))[1]
+    unique_name = f"{uuid.uuid4()}{extension}"
+    file_path = os.path.join(UPLOADS_DIR, unique_name)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return f"/uploads/{unique_name}"
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -321,11 +393,8 @@ def get_me(user_email: Optional[str] = Depends(get_current_user_email)):
 @app.post("/api/profile", response_model=Profile)
 def update_profile(
     profile_data: ProfileUpdate, 
-    user_email: Optional[str] = Depends(get_current_user_email)
+    user_email: str = Depends(require_current_user_email)
 ):
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
     if mongo_manager.is_connected and mongo_manager.db is not None:
         users_col = mongo_manager.db["users"]
         users_col.update_one(
@@ -365,33 +434,32 @@ def update_profile(
 # --- UPLOAD ENDPOINT ---
 
 @app.post("/api/upload")
-async def upload_photo(file: UploadFile = File(...)):
+async def upload_photo(file: UploadFile = File(...), user_email: str = Depends(require_current_user_email)):
     try:
-        extension = os.path.splitext(file.filename)[1]
-        unique_name = f"{uuid.uuid4()}{extension}"
-        file_path = os.path.join(UPLOADS_DIR, unique_name)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        return {"url": f"/uploads/{unique_name}"}
+        return {"url": await store_uploaded_file(file)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload photo: {str(e)}")
 
-@app.post("/api/upload-multiple")
-async def upload_multiple(files: List[UploadFile] = File(...)):
-    uploaded_urls = []
+async def store_multiple_uploads(files: List[UploadFile]) -> List[str]:
     try:
+        uploaded_urls = []
         for file in files:
-            extension = os.path.splitext(file.filename)[1]
-            unique_name = f"{uuid.uuid4()}{extension}"
-            file_path = os.path.join(UPLOADS_DIR, unique_name)
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            uploaded_urls.append(f"/uploads/{unique_name}")
-        return {"urls": uploaded_urls}
+            uploaded_urls.append(await store_uploaded_file(file))
+        return uploaded_urls
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload files: {str(e)}")
+
+@app.post("/api/upload-multiple")
+async def upload_multiple(files: List[UploadFile] = File(...), user_email: str = Depends(require_current_user_email)):
+    return {"urls": await store_multiple_uploads(files)}
+
+@app.post("/api/vyavasthapak/upload-multiple")
+async def vyavasthapak_upload_multiple(files: List[UploadFile] = File(...), admin_user: str = Depends(verify_admin_token)):
+    return {"urls": await store_multiple_uploads(files)}
 
 # --- POSTS ENDPOINTS ---
 
@@ -417,7 +485,7 @@ def format_post_dict(doc: dict) -> dict:
     }
 
 @app.get("/api/posts", response_model=List[Post])
-def get_posts(sort: Optional[str] = "latest"):
+def get_posts(sort: Optional[str] = "latest", user_email: str = Depends(require_current_user_email)):
     posts_list = []
     if mongo_manager.is_connected and mongo_manager.db is not None:
         posts_col = mongo_manager.db["posts"]
@@ -432,7 +500,7 @@ def get_posts(sort: Optional[str] = "latest"):
 
 
 @app.post("/api/posts", response_model=Post)
-def create_post(post_in: PostCreate, user_email: Optional[str] = Depends(get_current_user_email)):
+def create_post(post_in: PostCreate, user_email: str = Depends(require_current_user_email)):
     author_name = post_in.author or "ANONYMOUS USER"
     
     if user_email:
@@ -478,7 +546,7 @@ def create_post(post_in: PostCreate, user_email: Optional[str] = Depends(get_cur
 
 
 @app.get("/api/posts/{post_id}", response_model=Post)
-def get_post(post_id: str):
+def get_post(post_id: str, user_email: str = Depends(require_current_user_email)):
     if mongo_manager.is_connected and mongo_manager.db is not None:
         p = mongo_manager.db["posts"].find_one({"id": post_id})
         if p:
@@ -492,7 +560,7 @@ def get_post(post_id: str):
 
 
 @app.post("/api/posts/{post_id}/like", response_model=Post)
-def like_post(post_id: str):
+def like_post(post_id: str, user_email: str = Depends(require_current_user_email)):
     if mongo_manager.is_connected and mongo_manager.db is not None:
         posts_col = mongo_manager.db["posts"]
         p = posts_col.find_one({"id": post_id})
@@ -522,7 +590,7 @@ def like_post(post_id: str):
 
 
 @app.post("/api/posts/{post_id}/repost", response_model=Post)
-def repost_post(post_id: str):
+def repost_post(post_id: str, user_email: str = Depends(require_current_user_email)):
     if mongo_manager.is_connected and mongo_manager.db is not None:
         posts_col = mongo_manager.db["posts"]
         p = posts_col.find_one({"id": post_id})
@@ -552,7 +620,7 @@ def repost_post(post_id: str):
 
 
 @app.post("/api/posts/{post_id}/comment", response_model=Post)
-def add_comment(post_id: str, comment_in: CommentCreate):
+def add_comment(post_id: str, comment_in: CommentCreate, user_email: str = Depends(require_current_user_email)):
     new_comment = {
         "id": f"c_{uuid.uuid4().hex[:6]}",
         "author": comment_in.author,
@@ -586,7 +654,7 @@ def add_comment(post_id: str, comment_in: CommentCreate):
 # --- PROFILE ENDPOINTS ---
 
 @app.get("/api/profile", response_model=Profile)
-def get_profile(user_email: Optional[str] = Depends(get_current_user_email)):
+def get_profile(user_email: str = Depends(require_current_user_email)):
     if user_email and mongo_manager.is_connected and mongo_manager.db is not None:
         u = mongo_manager.db["users"].find_one({"email": user_email})
         if u:
@@ -605,7 +673,7 @@ def get_profile(user_email: Optional[str] = Depends(get_current_user_email)):
     )
 
 @app.post("/api/profile", response_model=Profile)
-def update_profile(profile_in: ProfileUpdate, user_email: Optional[str] = Depends(get_current_user_email)):
+def update_profile(profile_in: ProfileUpdate, user_email: str = Depends(require_current_user_email)):
     if user_email and mongo_manager.is_connected and mongo_manager.db is not None:
         mongo_manager.db["users"].update_one(
             {"email": user_email},

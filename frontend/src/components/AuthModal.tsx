@@ -81,7 +81,7 @@ export default function AuthModal() {
             loop
             muted
             playsInline
-            className="w-full h-full object-cover object-center filter brightness-100 contrast-105"
+            className="w-full h-full scale-[1.12] object-cover object-center filter brightness-100 contrast-105"
           >
             <source src="/logo-bg.mp4" type="video/mp4" />
           </video>
@@ -105,7 +105,7 @@ export default function AuthModal() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-20 w-full max-w-md my-auto rounded-3xl border border-white/20 bg-black/10 backdrop-blur-[2px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden text-white p-6 sm:p-8"
+          className="relative z-20 w-full max-w-md my-auto rounded-3xl border border-white/10 bg-black/[0.015] backdrop-blur-[1px] shadow-[0_8px_32px_rgba(0,0,0,0.26)] overflow-hidden text-white p-6 sm:p-8"
         >
           {/* Subtle cyan glow line across top */}
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#42E8FF] to-transparent opacity-80" />
@@ -168,7 +168,7 @@ export default function AuthModal() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full bg-black/25 border border-white/25 focus:border-[#42E8FF] focus:bg-black/45 focus:shadow-[0_0_20px_rgba(66,232,255,0.4)] rounded-xl py-3 pl-10 pr-4 text-white text-sm placeholder-slate-300 focus:outline-none transition-all drop-shadow"
+                  className="w-full bg-black/5 border border-white/25 focus:border-[#42E8FF] focus:bg-black/15 focus:shadow-[0_0_20px_rgba(66,232,255,0.4)] rounded-xl py-3 pl-10 pr-4 text-white text-sm placeholder-slate-300 focus:outline-none transition-all drop-shadow"
                 />
               </div>
             </div>
@@ -177,7 +177,7 @@ export default function AuthModal() {
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full mt-3 py-3.5 px-4 relative overflow-hidden rounded-xl font-extrabold text-slate-950 flex items-center justify-center space-x-2 transition-all duration-300 disabled:opacity-50 cursor-pointer shadow-[0_0_30px_rgba(66,232,255,0.4)] group bg-gradient-to-r from-[#2D9CFF] via-[#42E8FF] to-[#4DFFB8] hover:shadow-[0_0_40px_rgba(66,232,255,0.7)]"
+              className="w-full mt-3 py-3.5 px-4 relative overflow-hidden rounded-xl font-extrabold text-slate-950 flex items-center justify-center space-x-2 transition-all duration-300 disabled:opacity-50 cursor-pointer shadow-[0_0_30px_rgba(66,232,255,0.4)] group bg-gradient-to-r from-[#2D9CFF]/90 via-[#42E8FF]/90 to-[#4DFFB8]/90 hover:shadow-[0_0_40px_rgba(66,232,255,0.7)]"
             >
               {/* Button shimmer hover effect */}
               <div className="absolute inset-0 w-1/2 h-full bg-white/25 skew-x-12 -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-in-out pointer-events-none" />

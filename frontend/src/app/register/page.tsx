@@ -84,7 +84,7 @@ export default function RegisterPage() {
           loop
           muted
           playsInline
-          className="w-full h-full object-cover object-center filter brightness-100 contrast-105"
+          className="w-full h-full scale-[1.12] object-cover object-center filter brightness-100 contrast-105"
         >
           <source src="/logo-bg.mp4" type="video/mp4" />
         </video>

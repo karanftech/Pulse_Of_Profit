@@ -9,7 +9,7 @@ export default function FooterWidget() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-10">
         
         {/* Brand Column */}
-        <div className="md:col-span-5 space-y-4">
+        <div id="about" className="md:col-span-5 space-y-4">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-2xl btn-cyan-gradient flex items-center justify-center font-bold text-black font-display text-lg">
               P
@@ -72,8 +72,8 @@ export default function FooterWidget() {
       <div className="max-w-7xl mx-auto mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center text-xs text-[#A0A7B5] gap-4">
         <div>© 2026 Pulse of Profit. All rights reserved.</div>
         <div className="flex space-x-6">
-          <a href="#" className="hover:text-white">Privacy Policy</a>
-          <a href="#" className="hover:text-white">Terms of Service</a>
+          <a id="privacy" href="#privacy" className="hover:text-white">Privacy Policy</a>
+          <a id="terms" href="#terms" className="hover:text-white">Terms of Service</a>
           <a href="#" className="hover:text-white">Risk Disclaimer</a>
         </div>
       </div>

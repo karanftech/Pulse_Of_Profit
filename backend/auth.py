@@ -12,7 +12,7 @@ load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "beat-the-street-super-secret-key-2026")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 48
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
 
@@ -62,6 +62,15 @@ def get_current_user_email(token: Optional[str] = Depends(oauth2_scheme)) -> Opt
         return email
     except JWTError:
         return None
+
+def require_current_user_email(email: Optional[str] = Depends(get_current_user_email)) -> str:
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return email
 
 def verify_admin_token(token: Optional[str] = Depends(oauth2_scheme)) -> str:
     if not token:

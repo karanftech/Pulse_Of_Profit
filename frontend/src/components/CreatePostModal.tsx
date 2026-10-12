@@ -66,6 +66,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
 
         const uploadRes = await fetch(`${API_BASE_URL}/api/upload`, {
           method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
           body: formData,
         });
 

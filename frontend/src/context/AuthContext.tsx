@@ -14,34 +14,66 @@ interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
   isAuthModalOpen: boolean;
+  isLandingPageVisible: boolean;
   authMode: 'login' | 'register';
   setAuthMode: (mode: 'login' | 'register') => void;
   isLoadingAuth: boolean;
   openAuthModal: (mode?: 'login' | 'register') => void;
   closeAuthModal: () => void;
+  dismissLandingPage: () => void;
   login: (email: string, password?: string) => Promise<void>;
   register: (name?: string, mob_no?: string, email?: string, password?: string) => Promise<void>;
   authenticateWithEmail: (email: string) => Promise<void>;
-  logout: () => void;
   updateUserProfile: (updated: Partial<UserProfile>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://pulse-of-profit.onrender.com').replace(/\/$/, '');
+const SESSION_DURATION_MS = 48 * 60 * 1000;
 
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isLandingPageVisible, setIsLandingPageVisible] = useState(true);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
+  const clearSession = () => {
+    localStorage.removeItem('bts_token');
+    localStorage.removeItem('bts_user');
+    localStorage.removeItem('bts_session_expires_at');
+    setToken(null);
+    setUser(null);
+    setIsAuthModalOpen(false);
+    setIsLandingPageVisible(true);
+  };
+
+  const startSession = (sessionToken: string, profile: UserProfile) => {
+    localStorage.setItem('bts_token', sessionToken);
+    localStorage.setItem('bts_user', JSON.stringify(profile));
+    localStorage.setItem('bts_session_expires_at', String(Date.now() + SESSION_DURATION_MS));
+    setToken(sessionToken);
+    setUser(profile);
+    setIsAuthModalOpen(false);
+    setIsLandingPageVisible(false);
+  };
 
   useEffect(() => {
     const savedToken = localStorage.getItem('bts_token');
     const savedUser = localStorage.getItem('bts_user');
     if (savedToken) {
+      const savedExpiry = Number(localStorage.getItem('bts_session_expires_at'));
+      if (savedExpiry && savedExpiry <= Date.now()) {
+        clearSession();
+        setIsLoadingAuth(false);
+        return;
+      }
+      if (!savedExpiry) {
+        localStorage.setItem('bts_session_expires_at', String(Date.now() + SESSION_DURATION_MS));
+      }
       setToken(savedToken);
       if (savedUser) {
         try {
@@ -52,15 +84,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchUserProfile(savedToken);
     } else {
       setIsLoadingAuth(false);
-      setIsAuthModalOpen(true);
+      setIsAuthModalOpen(false);
     }
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+
+    const expiresAt = Number(localStorage.getItem('bts_session_expires_at'));
+    const endSessionIfExpired = () => {
+      if (Date.now() >= expiresAt) clearSession();
+    };
+    const timeout = window.setTimeout(endSessionIfExpired, Math.max(0, expiresAt - Date.now()));
+    window.addEventListener('focus', endSessionIfExpired);
+    document.addEventListener('visibilitychange', endSessionIfExpired);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('focus', endSessionIfExpired);
+      document.removeEventListener('visibilitychange', endSessionIfExpired);
+    };
+  }, [token]);
+
   const fetchUserProfile = async (jwtToken: string) => {
-    // Client-verified email session: keep authenticated
+    // Only server-issued JWTs may unlock protected routes.
     if (jwtToken.startsWith('email_') || jwtToken.startsWith('offline_')) {
+      clearSession();
       setIsLoadingAuth(false);
-      setIsAuthModalOpen(false);
       return;
     }
 
@@ -75,6 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data);
         localStorage.setItem('bts_user', JSON.stringify(data));
         setIsAuthModalOpen(false);
+      } else if (res.status === 401) {
+        clearSession();
       } else {
         // If saved user profile exists in localStorage, maintain session
         const savedUser = localStorage.getItem('bts_user');
@@ -83,10 +135,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(JSON.parse(savedUser));
             setIsAuthModalOpen(false);
           } catch (e) {
-            setIsAuthModalOpen(true);
+            setIsAuthModalOpen(false);
           }
         } else {
-          setIsAuthModalOpen(true);
+          setIsAuthModalOpen(false);
         }
       }
     } catch (err) {
@@ -98,10 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(JSON.parse(savedUser));
           setIsAuthModalOpen(false);
         } catch (e) {
-          setIsAuthModalOpen(true);
+          setIsAuthModalOpen(false);
         }
       } else {
-        setIsAuthModalOpen(true);
+        setIsAuthModalOpen(false);
       }
     } finally {
       setIsLoadingAuth(false);
@@ -115,13 +167,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const closeAuthModal = () => {
     setIsAuthModalOpen(false);
+    setIsLandingPageVisible(true);
   };
+
+  const dismissLandingPage = () => setIsLandingPageVisible(false);
 
   const authenticateWithEmail = async (email: string) => {
     const trimmedEmail = email.trim().toLowerCase();
 
     // Helper to log user in directly on client
-    const loginDirectly = (profileData?: Partial<UserProfile>, tokenStr?: string) => {
+    const loginDirectly = (profileData: Partial<UserProfile>, tokenStr: string) => {
       const displayName = profileData?.name || trimmedEmail.split('@')[0].charAt(0).toUpperCase() + trimmedEmail.split('@')[0].slice(1);
       const existingUser: UserProfile = {
         email: trimmedEmail,
@@ -130,12 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: profileData?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${trimmedEmail}`,
         bio: profileData?.bio || 'Member of Pulse of Profit community.'
       };
-      const sessionToken = tokenStr || ('email_' + btoa(trimmedEmail));
-      localStorage.setItem('bts_token', sessionToken);
-      localStorage.setItem('bts_user', JSON.stringify(existingUser));
-      setToken(sessionToken);
-      setUser(existingUser);
-      setIsAuthModalOpen(false);
+      startSession(tokenStr, existingUser);
     };
 
     try {
@@ -168,28 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If response is not ok, inspect error detail
       const errData = await res.json().catch(() => ({}));
-      const detailStr = String(errData.detail || '').toLowerCase();
-
-      // If user already exists: Log them in directly!
-      if (detailStr.includes('already exists') || detailStr.includes('exists') || res.status === 400) {
-        loginDirectly();
-        return;
-      }
-
       throw new Error(errData.detail || 'Authentication failed');
     } catch (err: any) {
-      const errMsg = String(err.message || '').toLowerCase();
-      // If error indicates user already exists, log in directly
-      if (errMsg.includes('already exists') || errMsg.includes('exists')) {
-        loginDirectly();
-        return;
-      }
-
-      // If network / fetch error (offline or cold start), log in with client session
-      if (err.name === 'TypeError' || err.message?.includes('fetch')) {
-        loginDirectly();
-        return;
-      }
       throw err;
     }
   };
@@ -207,11 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res.ok) {
         const data = await res.json();
-        localStorage.setItem('bts_token', data.access_token);
-        localStorage.setItem('bts_user', JSON.stringify(data.user));
-        setToken(data.access_token);
-        setUser(data.user);
-        setIsAuthModalOpen(false);
+        startSession(data.access_token, data.user);
         return;
       }
 
@@ -251,11 +277,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res.ok) {
         const data = await res.json();
-        localStorage.setItem('bts_token', data.access_token);
-        localStorage.setItem('bts_user', JSON.stringify(data.user));
-        setToken(data.access_token);
-        setUser(data.user);
-        setIsAuthModalOpen(false);
+        startSession(data.access_token, data.user);
         return;
       }
 
@@ -278,14 +300,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('bts_token');
-    localStorage.removeItem('bts_user');
-    setToken(null);
-    setUser(null);
-    setIsAuthModalOpen(true);
-  };
-
   const updateUserProfile = (updated: Partial<UserProfile>) => {
     setUser(prev => {
       if (!prev) return null;
@@ -301,15 +315,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isAuthModalOpen,
+        isLandingPageVisible,
         authMode,
         setAuthMode,
         isLoadingAuth,
         openAuthModal,
         closeAuthModal,
+        dismissLandingPage,
         login,
         register,
         authenticateWithEmail,
-        logout,
         updateUserProfile
       }}
     >
