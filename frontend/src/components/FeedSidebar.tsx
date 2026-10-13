@@ -24,7 +24,7 @@ interface FeedSidebarProps {
   addActivity: (message: string) => void;
 }
 
-const baseLinkClass = 'relative flex w-auto items-center justify-center gap-4 rounded-xl px-3 py-3.5 text-left text-[15px] text-slate-400 transition hover:bg-white/[0.06] hover:text-white xl:w-full xl:justify-start xl:px-4';
+const baseLinkClass = 'relative flex w-auto items-center justify-center gap-4 rounded-xl px-3 py-3.5 text-left text-[15px] text-slate-400 transition hover:bg-white/[0.06] hover:text-white lg:w-full lg:justify-start lg:px-4';
 
 export default function FeedSidebar({
   notifications,
@@ -50,7 +50,7 @@ export default function FeedSidebar({
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-[68px] items-center justify-between border-b border-white/10 bg-[#111216] px-5 xl:hidden">
+      <header className="sticky top-0 z-40 flex h-[68px] items-center justify-between border-b border-white/10 bg-[#111216] px-5 lg:hidden">
         <a href="#top" className="flex items-center gap-3" aria-label="Pulse of Profit home">
           <img src="/logo.png" alt="" className="h-9 w-9 rounded-xl object-contain" />
           <span className="text-xl font-semibold tracking-tight text-white">Home</span>
@@ -60,23 +60,23 @@ export default function FeedSidebar({
         </button>
       </header>
 
-      <aside className="fixed inset-x-0 bottom-0 z-40 flex h-[68px] items-center justify-around border-t border-white/10 bg-[#111216] px-2 pb-[env(safe-area-inset-bottom)] pt-1 xl:sticky xl:top-0 xl:inset-auto xl:h-screen xl:flex-col xl:items-stretch xl:justify-start xl:border-0 xl:bg-transparent xl:px-0 xl:py-7">
-      <a href="#top" className="mb-10 ml-3 hidden w-fit items-center xl:inline-flex" aria-label="Pulse of Profit home">
+      <aside className="fixed inset-x-0 bottom-0 z-40 flex h-[68px] items-center justify-around border-t border-white/10 bg-[#111216] px-2 pb-[env(safe-area-inset-bottom)] pt-1 lg:sticky lg:top-0 lg:inset-auto lg:h-screen lg:flex-col lg:items-stretch lg:justify-start lg:border-0 lg:bg-transparent lg:px-0 lg:py-7">
+      <a href="#top" className="mb-10 ml-3 hidden w-fit items-center lg:inline-flex" aria-label="Pulse of Profit home">
         <img src="/logo.png" alt="Pulse of Profit" className="h-14 w-14 rounded-2xl object-contain" />
       </a>
 
-      <nav className="flex w-full items-center justify-around space-y-0 xl:block xl:space-y-2" aria-label="Main navigation">
+      <nav className="flex w-full items-center justify-around space-y-0 lg:block lg:space-y-2" aria-label="Main navigation">
         <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Home" className={`${baseLinkClass} font-semibold text-white`}>
-          <Home className="h-6 w-6 xl:h-5 xl:w-5" /><span className="hidden xl:inline">Home</span>
+          <Home className="h-6 w-6 lg:h-5 lg:w-5" /><span className="hidden lg:inline">Home</span>
         </button>
 
         <div className="relative">
           <button onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsMoreOpen(false); }} className={baseLinkClass} aria-label="Notifications" aria-expanded={isNotificationsOpen}>
-            <Bell className="h-6 w-6 xl:h-5 xl:w-5" /><span className="hidden flex-1 xl:inline">Notifications</span>
-            {unreadCount > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#42E8FF] px-1 text-[9px] font-bold text-slate-950 xl:static xl:h-auto xl:min-w-0 xl:px-2 xl:py-0.5 xl:text-[10px]">{unreadCount}</span>}
+            <Bell className="h-6 w-6 lg:h-5 lg:w-5" /><span className="hidden flex-1 lg:inline">Notifications</span>
+            {unreadCount > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#42E8FF] px-1 text-[9px] font-bold text-slate-950 lg:static lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5 lg:text-[10px]">{unreadCount}</span>}
           </button>
           {isNotificationsOpen && (
-            <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] left-3 right-3 z-50 rounded-2xl border border-white/10 bg-[#0b111b] p-4 shadow-2xl xl:absolute xl:bottom-auto xl:left-full xl:right-auto xl:top-0 xl:ml-3 xl:w-[320px]">
+            <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] left-3 right-3 z-50 rounded-2xl border border-white/10 bg-[#0b111b] p-4 shadow-2xl lg:absolute lg:bottom-auto lg:left-full lg:right-auto lg:top-0 lg:ml-3 lg:w-[320px]">
               <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
                 <h2 className="text-sm font-bold text-white">Notifications</h2>
                 <div className="flex items-center gap-1">
@@ -99,17 +99,17 @@ export default function FeedSidebar({
         </div>
 
         <button onClick={onExploreClick} aria-label="Explore" className={baseLinkClass}>
-          <Compass className="h-6 w-6 xl:h-5 xl:w-5" /><span className="hidden xl:inline">Explore</span>
+          <Compass className="h-6 w-6 lg:h-5 lg:w-5" /><span className="hidden lg:inline">Explore</span>
         </button>
         <button onClick={onProfileClick} aria-label="Profile" className={baseLinkClass}>
-          <UserRound className="h-6 w-6 xl:h-5 xl:w-5" /><span className="hidden xl:inline">Profile</span>
+          <UserRound className="h-6 w-6 lg:h-5 lg:w-5" /><span className="hidden lg:inline">Profile</span>
         </button>
-        <button onClick={onSearchClick} aria-label="Search bulletins" className={`${baseLinkClass} xl:hidden`}>
+        <button onClick={onSearchClick} aria-label="Search bulletins" className={`${baseLinkClass} lg:hidden`}>
           <Search className="h-6 w-6" />
         </button>
       </nav>
 
-      <div className="relative mt-auto hidden xl:block">
+      <div className="relative mt-auto hidden lg:block">
         {isMoreOpen && (
           <div className="absolute bottom-14 left-0 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl">
             <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
@@ -127,7 +127,7 @@ export default function FeedSidebar({
       </aside>
 
       {isMoreOpen && (
-        <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-3 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl xl:hidden">
+        <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-3 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl lg:hidden">
           <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
           <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
           <div className="my-1 border-t border-white/10" />

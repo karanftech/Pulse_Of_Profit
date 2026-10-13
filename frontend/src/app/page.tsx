@@ -244,7 +244,7 @@ export default function Home() {
 
   return (
     <div id="top" className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#42E8FF] selection:text-black">
-      <div className="mx-auto grid min-h-screen w-full grid-cols-1 gap-6 px-4 xl:grid-cols-[220px_minmax(0,1fr)_320px] xl:justify-between 2xl:grid-cols-[250px_710px_465px] 2xl:gap-5 2xl:px-8">
+      <div className="mx-auto grid min-h-screen w-full grid-cols-1 gap-6 px-4 lg:grid-cols-[180px_minmax(0,1fr)_260px] lg:gap-4 xl:grid-cols-[220px_minmax(0,1fr)_320px] xl:gap-6 xl:justify-between 2xl:grid-cols-[250px_710px_465px] 2xl:gap-5 2xl:px-8">
         <FeedSidebar
           notifications={notifications}
           setNotifications={saveNotifications}
@@ -259,14 +259,14 @@ export default function Home() {
         <FeedRightRail onSearchClick={handleSearchClick} />
 
       {/* NEWS & RESEARCH (PULSE OF PROFIT BULLETINS FEED) */}
-      <section id="bulletins-feed" className="w-full min-w-0 pb-28 pt-2 xl:col-start-2 xl:row-start-1 xl:py-7">
+      <section id="bulletins-feed" className="w-full min-w-0 pb-28 pt-2 sm:pt-7 lg:col-start-2 lg:row-start-1 lg:py-7 lg:pb-7">
         
         {/* Feed Title */}
-        <div className="mb-3 flex items-center gap-1 text-sm text-slate-400 xl:hidden">
+        <div className="mb-3 flex items-center gap-1 text-sm text-slate-400 sm:hidden">
           <span>For you</span>
           <ChevronDown className="h-4 w-4" />
         </div>
-        <div className="mb-6 hidden flex-col space-y-2 sm:mb-8 xl:flex">
+        <div className="mb-6 hidden flex-col space-y-2 sm:mb-8 sm:flex">
           <div className="inline-flex items-center space-x-2 text-[11px] sm:text-xs font-semibold text-[#42E8FF] uppercase tracking-wider">
             <Newspaper className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#42E8FF]" />
             <span>Pulse of Profit Bulletins</span>
@@ -284,7 +284,7 @@ export default function Home() {
           <div className="space-y-8">
             {/* Pinned Featured Bulletin */}
             {pinnedPost && !blockedAuthors.includes(pinnedPost.author) && !mutedAuthors.includes(pinnedPost.author) && (
-              <div className="hidden xl:block">
+              <div className="hidden sm:block">
               <PinnedPost 
                 id={pinnedPost.id}
                 title={pinnedPost.title}
