@@ -153,7 +153,7 @@ export default function Feed({
   };
 
   // Open the share menu for a post
-  const handleShareClick = (post: Post, e: React.MouseEvent) => {
+  const handleShareClick = (post: Post, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const url = `${window.location.origin}/posts/${post.id}`;
