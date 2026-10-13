@@ -127,7 +127,7 @@ export default function FeedSidebar({
       </aside>
 
       {isMoreOpen && (
-        <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-3 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl lg:hidden">
+        <div className="fixed right-3 top-[76px] z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl lg:hidden">
           <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
           <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
           <div className="my-1 border-t border-white/10" />
