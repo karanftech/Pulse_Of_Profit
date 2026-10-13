@@ -63,8 +63,10 @@ export default function Feed({
   // Interactive UI states
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [sharePostId, setSharePostId] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
+  const [shareAnchorElement, setShareAnchorElement] = useState<HTMLElement | null>(null);
 
   // Bell, Cross & Dot states
   const [activeThreeDotPostId, setActiveThreeDotPostId] = useState<string | null>(null);
@@ -150,14 +152,17 @@ export default function Feed({
     }));
   };
 
-  // Trigger custom Share Modal
+  // Open the share menu for a post
   const handleShareClick = (post: Post, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const url = `${window.location.origin}/posts/${post.id}`;
     setShareUrl(url);
     setShareTitle(post.title);
-    setIsShareOpen(true);
+    const shouldOpen = sharePostId !== post.id;
+    setSharePostId(shouldOpen ? post.id : null);
+    setShareAnchorElement(shouldOpen ? e.currentTarget : null);
+    setIsShareOpen(shouldOpen);
   };
 
   // Handle Comments Click
@@ -324,13 +329,13 @@ export default function Feed({
         </div>
       )}
 
-      {/* Share Modal */}
-      <ShareModal 
-        isOpen={isShareOpen} 
-        onClose={() => setIsShareOpen(false)} 
-        url={shareUrl} 
-        title={shareTitle} 
-        showToast={showToast} 
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => { setIsShareOpen(false); setSharePostId(null); setShareAnchorElement(null); }}
+        url={shareUrl}
+        title={shareTitle}
+        anchorElement={shareAnchorElement}
+        showToast={showToast}
       />
 
       {/* AI Scanning Alert */}
@@ -568,13 +573,17 @@ export default function Feed({
                     </button>
 
                     {/* Share Button */}
-                    <button 
-                      onClick={(e) => handleShareClick(post, e)}
-                      className="flex items-center hover:text-[#42E8FF] transition-colors group/btn ml-auto sm:ml-0"
-                      title="Share post"
-                    >
-                      <Share2 className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
-                    </button>
+                    <div className="relative ml-auto sm:ml-0">
+                      <button 
+                        onClick={(e) => handleShareClick(post, e)}
+                        className="flex items-center hover:text-[#42E8FF] transition-colors group/btn"
+                        title="Share post"
+                        aria-haspopup="menu"
+                        aria-expanded={isShareOpen && sharePostId === post.id}
+                      >
+                        <Share2 className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
+                      </button>
+                    </div>
                   </div>
 
                 </div>
