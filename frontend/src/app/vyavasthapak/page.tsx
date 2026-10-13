@@ -20,6 +20,8 @@ import {
   Database, 
   Server, 
   Plus, 
+  ArrowUp,
+  ArrowDown,
   Eye, 
   UserX, 
   UserCheck, 
@@ -82,6 +84,12 @@ interface ReportItem {
   timestamp: string;
 }
 
+type BulletinBlock =
+  | { id: string; type: 'text'; text: string }
+  | { id: string; type: 'media'; file?: File; previewUrl?: string };
+
+const createBulletinBlockId = () => `bulletin-block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export default function VyavasthapakAdminPage() {
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
@@ -111,12 +119,10 @@ export default function VyavasthapakAdminPage() {
   // Publish Bulletin Form
   const [bulletinTitle, setBulletinTitle] = useState('PULSE OF PROFIT BULLETIN 🗞️');
   const [bulletinAuthor, setBulletinAuthor] = useState('VYAVASTHAPAK ADMIN');
-  const [bulletinContent, setBulletinContent] = useState('');
-  const [bulletinImageUrl, setBulletinImageUrl] = useState('');
+  const [bulletinBlocks, setBulletinBlocks] = useState<BulletinBlock[]>(() => [
+    { id: createBulletinBlockId(), type: 'text', text: '' },
+  ]);
   const [publishing, setPublishing] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<{ url: string; isVideo: boolean }[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Manage Post Modal (Manual Likes & Fake Comments)
   const [activeManagePost, setActiveManagePost] = useState<PostItem | null>(null);
@@ -125,21 +131,57 @@ export default function VyavasthapakAdminPage() {
   const [fakeCommentAvatar, setFakeCommentAvatar] = useState('');
   const [fakeCommentContent, setFakeCommentContent] = useState('');
 
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArr = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...filesArr]);
-      const newPreviews = filesArr.map(file => ({
-        url: URL.createObjectURL(file),
-        isVideo: file.type.startsWith('video/')
-      }));
-      setPreviews(prev => [...prev, ...newPreviews]);
-    }
+  const addBulletinBlock = (index: number, type: BulletinBlock['type']) => {
+    const block: BulletinBlock = type === 'text'
+      ? { id: createBulletinBlockId(), type, text: '' }
+      : { id: createBulletinBlockId(), type };
+    setBulletinBlocks((current) => {
+      const next = [...current];
+      next.splice(index, 0, block);
+      return next;
+    });
   };
 
-  const handleRemoveMedia = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    setPreviews(prev => prev.filter((_, i) => i !== index));
+  const updateBulletinText = (id: string, text: string) => {
+    setBulletinBlocks((current) => current.map((block) => block.id === id && block.type === 'text' ? { ...block, text } : block));
+  };
+
+  const updateBulletinMedia = (id: string, file?: File) => {
+    if (file) {
+      const hasImageType = file.type ? file.type.startsWith('image/') : /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i.test(file.name);
+      if (!hasImageType) {
+        showToast('Choose an image file for this bulletin block');
+        return;
+      }
+    }
+    const previousBlock = bulletinBlocks.find((block) => block.id === id);
+    if (previousBlock?.type === 'media' && previousBlock.previewUrl) URL.revokeObjectURL(previousBlock.previewUrl);
+    const previewUrl = file ? URL.createObjectURL(file) : undefined;
+    setBulletinBlocks((current) => current.map((block) => {
+      if (block.id !== id || block.type !== 'media') return block;
+      return file
+        ? { ...block, file, previewUrl }
+        : { ...block, file: undefined, previewUrl: undefined };
+    }));
+  };
+
+  const moveBulletinBlock = (index: number, direction: -1 | 1) => {
+    setBulletinBlocks((current) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  const removeBulletinBlock = (id: string) => {
+    const removed = bulletinBlocks.find((block) => block.id === id);
+    if (removed?.type === 'media' && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+    setBulletinBlocks((current) => {
+      const next = current.filter((item) => item.id !== id);
+      return next.length ? next : [{ id: createBulletinBlockId(), type: 'text', text: '' }];
+    });
   };
 
   // Check existing session and admin existence
@@ -426,22 +468,24 @@ export default function VyavasthapakAdminPage() {
 
   const handlePublishBulletin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bulletinContent.trim()) {
-      showToast('Bulletin content cannot be empty');
+    const textContent = bulletinBlocks
+      .filter((block): block is Extract<BulletinBlock, { type: 'text' }> => block.type === 'text')
+      .map((block) => block.text.trim())
+      .filter(Boolean)
+      .join('\n\n');
+    if (!textContent) {
+      showToast('Add at least one text block before publishing');
       return;
     }
 
     setPublishing(true);
     try {
-      let mediaUrls: string[] = [];
-      if (bulletinImageUrl.trim()) {
-        mediaUrls.push(bulletinImageUrl.trim());
-      }
-
-      if (selectedFiles.length > 0) {
+      const mediaBlocks = bulletinBlocks.filter((block): block is Extract<BulletinBlock, { type: 'media' }> => block.type === 'media' && Boolean(block.file));
+      let uploadedUrls: string[] = [];
+      if (mediaBlocks.length > 0) {
         const formData = new FormData();
-        selectedFiles.forEach(file => {
-          formData.append('files', file);
+        mediaBlocks.forEach((block) => {
+          formData.append('files', block.file!);
         });
 
         const uploadRes = await fetch(`${API_BASE_URL}/api/vyavasthapak/upload-multiple`, {
@@ -454,11 +498,27 @@ export default function VyavasthapakAdminPage() {
 
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
-          mediaUrls = [...mediaUrls, ...(uploadData.urls || [])];
+          uploadedUrls = uploadData.urls || [];
         } else {
-          showToast('Failed to upload media files. Publishing text content...');
+          showToast('Could not upload your media. Please try again.');
+          return;
         }
       }
+
+      if (uploadedUrls.length !== mediaBlocks.length) {
+        showToast('Some media did not upload. Please try again.');
+        return;
+      }
+
+      let uploadIndex = 0;
+      const contentBlocks = bulletinBlocks.flatMap((block) => {
+        if (block.type === 'text') {
+          return block.text.trim() ? [{ type: 'text' as const, text: block.text.trim() }] : [];
+        }
+        if (!block.file) return [];
+        return [{ type: 'media' as const, url: uploadedUrls[uploadIndex++] }];
+      });
+      const mediaUrls = contentBlocks.flatMap((block) => block.type === 'media' ? [block.url] : []);
 
       const res = await fetch(`${API_BASE_URL}/api/vyavasthapak/posts`, {
         method: 'POST',
@@ -466,19 +526,20 @@ export default function VyavasthapakAdminPage() {
         body: JSON.stringify({
           title: bulletinTitle,
           author: bulletinAuthor,
-          content: bulletinContent,
+          content: textContent,
           imageUrl: mediaUrls.length > 0 ? mediaUrls[0] : null,
-          mediaUrls: mediaUrls
+          mediaUrls,
+          contentBlocks
         })
       });
 
       if (res.ok) {
         const newPost = await res.json();
         setPosts(prev => [newPost, ...prev]);
-        setBulletinContent('');
-        setBulletinImageUrl('');
-        setSelectedFiles([]);
-        setPreviews([]);
+        bulletinBlocks.forEach((block) => {
+          if (block.type === 'media' && block.previewUrl) URL.revokeObjectURL(block.previewUrl);
+        });
+        setBulletinBlocks([{ id: createBulletinBlockId(), type: 'text', text: '' }]);
         showToast('Official Bulletin published successfully!');
         setActiveTab('posts');
         fetchDashboardData();
@@ -1095,61 +1156,80 @@ export default function VyavasthapakAdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#A0A7B5] uppercase tracking-wider mb-1.5">
-                    Bulletin Intelligence Content
-                  </label>
-                  <textarea
-                    rows={6}
-                    value={bulletinContent}
-                    onChange={(e) => setBulletinContent(e.target.value)}
-                    placeholder="Write detailed market telemetry, stock commentary or official announcements..."
-                    className="w-full px-4 py-3 rounded-xl bg-[#0D1624] border border-white/10 focus:border-[#42E8FF] text-xs text-white focus:outline-none placeholder:text-gray-600"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#A0A7B5] uppercase tracking-wider mb-1.5">
-                    Attach Media Files (Photos / Videos)
-                  </label>
-                  
-                  {previews.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      {previews.map((item, idx) => (
-                        <div key={idx} className="relative rounded-xl overflow-hidden border border-white/10 bg-[#0D1624] aspect-[16/9]">
-                          {item.isVideo ? (
-                            <video src={item.url} controls className="w-full h-full object-cover" />
-                          ) : (
-                            <img src={item.url} alt={`Upload preview ${idx}`} className="w-full h-full object-cover" />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMedia(idx)}
-                            className="absolute top-2 right-2 p-1 rounded-full bg-black/80 text-white hover:bg-red-500 transition-colors"
-                            title="Remove file"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#A0A7B5]">
+                        Bulletin Content Layout
+                      </label>
+                      <p className="mt-1 text-[10px] text-[#748094]">Add text and media blocks, then arrange them in the order you want.</p>
                     </div>
-                  ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => addBulletinBlock(bulletinBlocks.length, 'text')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-slate-200 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">
+                        <Plus className="h-3.5 w-3.5" /> Add text
+                      </button>
+                      <button type="button" onClick={() => addBulletinBlock(bulletinBlocks.length, 'media')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-slate-200 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">
+                        <ImageIcon className="h-3.5 w-3.5" /> Add photo
+                      </button>
+                    </div>
+                  </div>
 
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-white/10 hover:border-[#42E8FF]/40 rounded-2xl p-5 text-center bg-[#0D1624]/60 cursor-pointer transition-all group"
-                  >
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFilesChange}
-                      accept="image/*,video/*"
-                      multiple
-                      className="hidden"
-                    />
-                    <UploadCloud className="w-7 h-7 mx-auto text-[#A0A7B5] group-hover:text-[#42E8FF] transition-colors mb-2" />
-                    <p className="text-xs font-semibold text-white">Click to upload multiple photos or videos</p>
-                    <p className="text-[10px] text-[#A0A7B5] mt-1">Supports JPG, PNG, WEBP, MP4, WEBM</p>
+                  <div className="space-y-3">
+                    {bulletinBlocks.map((block, index) => (
+                      <React.Fragment key={block.id}>
+                        <div className="rounded-2xl border border-white/10 bg-[#0D1624]/75 p-3 sm:p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#42E8FF]">
+                              {block.type === 'text' ? 'Text block' : 'Photo block'} · {index + 1}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button type="button" onClick={() => moveBulletinBlock(index, -1)} disabled={index === 0} aria-label="Move block up" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+                              <button type="button" onClick={() => moveBulletinBlock(index, 1)} disabled={index === bulletinBlocks.length - 1} aria-label="Move block down" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">
+                                <ArrowDown className="h-4 w-4" />
+                              </button>
+                              <button type="button" onClick={() => removeBulletinBlock(block.id)} aria-label="Remove block" className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-300">
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {block.type === 'text' ? (
+                            <textarea
+                              rows={5}
+                              value={block.text}
+                              onChange={(e) => updateBulletinText(block.id, e.target.value)}
+                              placeholder="Write market commentary or an announcement..."
+                              className="w-full rounded-xl border border-white/10 bg-[#080d16] px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:border-[#42E8FF] focus:outline-none"
+                            />
+                          ) : block.previewUrl ? (
+                            <div className="space-y-2">
+                              <div className="relative aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                                <img src={block.previewUrl} alt={`Bulletin content block ${index + 1}`} className="h-full w-full object-contain" />
+                              </div>
+                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-[11px] text-slate-300 hover:border-[#42E8FF]/40 hover:text-white">
+                                Change file
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => updateBulletinMedia(block.id, e.target.files?.[0])} />
+                              </label>
+                            </div>
+                          ) : (
+                            <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-[#080d16]/70 px-4 py-8 text-center transition hover:border-[#42E8FF]/40">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => updateBulletinMedia(block.id, e.target.files?.[0])} />
+                              <UploadCloud className="mb-2 h-7 w-7 text-slate-400" />
+                              <span className="text-xs font-semibold text-white">Choose an image</span>
+                              <span className="mt-1 text-[10px] text-slate-500">JPG, PNG, WEBP, GIF, SVG</span>
+                            </label>
+                          )}
+                        </div>
+
+                        {index < bulletinBlocks.length - 1 && (
+                          <div className="flex flex-wrap justify-center gap-2 py-1">
+                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'text')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Insert text here</button>
+                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'media')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Insert photo here</button>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
 

@@ -21,7 +21,7 @@ import {
 import ShareModal from '@/components/ShareModal';
 import { useAuth } from '../context/AuthContext';
 
-import { Post, Comment } from '@/types/post';
+import { getPostContentBlocks, Post, Comment } from '@/types/post';
 
 interface FeedProps {
   posts: Post[];
@@ -348,6 +348,7 @@ export default function Feed({
           </div>
         ) : (
           visiblePosts.map((post) => {
+            const contentBlocks = getPostContentBlocks(post);
             if (hiddenPostIds[post.id]) {
               return (
                 <div 
@@ -484,43 +485,27 @@ export default function Feed({
                     <p className="text-[11px] sm:text-xs font-mono text-[#A0A7B5]">
                       Published: {post.date}
                     </p>
-                    <p className="text-xs sm:text-sm text-[#A0A7B5] line-clamp-3 leading-relaxed">
-                      {post.content}
-                    </p>
                   </div>
 
-                  {/* Attached Media (Photos / Videos) */}
-                  {((post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl) && (
-                    <div className="space-y-2 mt-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl">
-                        {(post.mediaUrls && post.mediaUrls.length > 0 
-                          ? post.mediaUrls 
-                          : [post.imageUrl!]
-                        ).map((media, idx) => {
-                          const fullUrl = media.startsWith('/') ? `${apiBaseUrl}${media}` : media;
-                          const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(media);
+                  <div className="mt-2 space-y-3">
+                    {contentBlocks.map((block, idx) => {
+                      if (block.type === 'text') {
+                        return <p key={`text-${idx}`} className="whitespace-pre-line text-xs leading-relaxed text-[#A0A7B5] line-clamp-3 sm:text-sm">{block.text}</p>;
+                      }
 
-                          return (
-                            <div key={idx} className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#0D1624] aspect-[16/9] w-full">
-                              {isVideo ? (
-                                <video 
-                                  src={fullUrl} 
-                                  controls 
-                                  className="w-full h-full object-cover" 
-                                />
-                              ) : (
-                                <img 
-                                  src={fullUrl} 
-                                  alt={`Bulletin Media ${idx + 1}`}
-                                  className="object-cover w-full h-full hover:scale-105 transition-transform duration-500"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      const fullUrl = block.url.startsWith('/') ? `${apiBaseUrl}${block.url}` : block.url;
+                      const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(block.url);
+                      return (
+                        <div key={`media-${idx}`} className="relative aspect-[16/9] w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0D1624]">
+                          {isVideo ? (
+                            <video src={fullUrl} controls className="h-full w-full object-cover" />
+                          ) : (
+                            <img src={fullUrl} alt={`Bulletin media ${idx + 1}`} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   {/* Bottom Action Bar (Substack layout: left aligned, clean gap) */}
                   <div className="flex items-center gap-6 sm:gap-8 border-t border-white/10 pt-3.5 mt-2 text-[#A0A7B5] text-xs font-medium">

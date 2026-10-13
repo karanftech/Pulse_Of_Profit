@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { API_BASE_URL, useAuth } from '@/context/AuthContext';
-import { Post } from '@/types/post';
+import { getPostContentBlocks, Post } from '@/types/post';
 
 const fallbackPosts: Post[] = [
   {
@@ -110,7 +110,7 @@ export default function PostDetail() {
     );
   }
 
-  const media = post.mediaUrls?.length ? post.mediaUrls : post.imageUrl ? [post.imageUrl] : [];
+  const contentBlocks = getPostContentBlocks(post);
 
   return (
     <main className="min-h-screen bg-[#05080d] px-5 py-8 text-white sm:px-8 sm:py-12">
@@ -131,11 +131,21 @@ export default function PostDetail() {
             </div>
           </header>
 
-          <div className="whitespace-pre-line text-base leading-8 text-slate-200 sm:text-lg sm:leading-9">{post.content}</div>
+          <div className="space-y-8">
+            {contentBlocks.map((block, index) => {
+              if (block.type === 'text') {
+                return <p key={`text-${index}`} className="whitespace-pre-line text-base leading-8 text-slate-200 sm:text-lg sm:leading-9">{block.text}</p>;
+              }
 
-          {media.map((src, index) => (
-            <img key={`${src}-${index}`} src={src} alt={`${post.title} media ${index + 1}`} className="mt-8 h-auto w-full rounded-2xl border border-white/10 object-contain" />
-          ))}
+              const src = block.url.startsWith('/') ? `${API_BASE_URL}${block.url}` : block.url;
+              const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(block.url);
+              return isVideo ? (
+                <video key={`media-${index}`} src={src} controls className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
+              ) : (
+                <img key={`media-${index}`} src={src} alt={`${post.title} media ${index + 1}`} className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
+              );
+            })}
+          </div>
         </article>
       </div>
     </main>

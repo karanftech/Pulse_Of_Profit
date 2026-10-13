@@ -6,6 +6,10 @@ export interface Comment {
   timestamp: string;
 }
 
+export type PostContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'media'; url: string };
+
 export interface Post {
   id: string;
   title: string;
@@ -18,6 +22,17 @@ export interface Post {
   comments: Comment[];
   imageUrl?: string;
   mediaUrls?: string[];
+  contentBlocks?: PostContentBlock[];
   isLiked?: boolean;
   isReposted?: boolean;
+}
+
+export function getPostContentBlocks(post: Pick<Post, 'content' | 'contentBlocks' | 'imageUrl' | 'mediaUrls'>): PostContentBlock[] {
+  if (post.contentBlocks?.length) return post.contentBlocks;
+
+  const blocks: PostContentBlock[] = [];
+  if (post.content) blocks.push({ type: 'text', text: post.content });
+  const media = post.mediaUrls?.length ? post.mediaUrls : post.imageUrl ? [post.imageUrl] : [];
+  media.forEach((url) => blocks.push({ type: 'media', url }));
+  return blocks;
 }

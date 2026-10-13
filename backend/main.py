@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, sta
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from database import mongo_manager, init_db
@@ -134,6 +134,7 @@ class Post(BaseModel):
     comments: List[Comment]
     imageUrl: Optional[str] = None
     mediaUrls: Optional[List[str]] = []
+    contentBlocks: Optional[List[Dict[str, Any]]] = None
     isLiked: Optional[bool] = False
     isReposted: Optional[bool] = False
 
@@ -142,6 +143,7 @@ class PostCreate(BaseModel):
     content: str
     imageUrl: Optional[str] = None
     mediaUrls: Optional[List[str]] = []
+    contentBlocks: Optional[List[Dict[str, Any]]] = None
     author: Optional[str] = None
 
 class Profile(BaseModel):
@@ -459,6 +461,12 @@ async def upload_multiple(files: List[UploadFile] = File(...), user_email: str =
 
 @app.post("/api/vyavasthapak/upload-multiple")
 async def vyavasthapak_upload_multiple(files: List[UploadFile] = File(...), admin_user: str = Depends(verify_admin_token)):
+    for file in files:
+        content_type = (file.content_type or "").lower()
+        if not is_image_upload(file) or content_type.startswith("video/") or (
+            content_type and content_type != "application/octet-stream" and not content_type.startswith("image/")
+        ):
+            raise HTTPException(status_code=400, detail="Only image files can be uploaded to admin bulletins.")
     return {"urls": await store_multiple_uploads(files)}
 
 # --- POSTS ENDPOINTS ---
@@ -480,6 +488,7 @@ def format_post_dict(doc: dict) -> dict:
         "comments": doc.get("comments", []),
         "imageUrl": doc.get("imageUrl"),
         "mediaUrls": media_list,
+        "contentBlocks": doc.get("contentBlocks"),
         "isLiked": doc.get("isLiked", False),
         "isReposted": doc.get("isReposted", False)
     }
@@ -532,6 +541,7 @@ def create_post(post_in: PostCreate, user_email: str = Depends(require_current_u
         "comments": [],
         "imageUrl": post_in.imageUrl,
         "mediaUrls": media_list,
+        "contentBlocks": post_in.contentBlocks,
         "isLiked": False,
         "isReposted": False,
         "created_at": datetime.now()
@@ -831,6 +841,7 @@ def vyavasthapak_create_post(post_in: PostCreate, admin_user: str = Depends(veri
         "comments": [],
         "imageUrl": post_in.imageUrl,
         "mediaUrls": media_list,
+        "contentBlocks": post_in.contentBlocks,
         "isLiked": False,
         "isReposted": False,
         "created_at": datetime.now()
