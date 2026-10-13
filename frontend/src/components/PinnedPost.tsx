@@ -19,7 +19,7 @@ export default function PinnedPost({ id, title, date, content, telegramUrl }: Pi
       {/* Background glow orb */}
       <div className="absolute -top-24 -left-24 w-60 h-60 bg-[#42E8FF]/10 rounded-full blur-3xl pointer-events-none group-hover:bg-[#42E8FF]/20 transition-all duration-300" />
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6 relative z-10">
+      <div className="relative z-10 flex flex-col justify-between gap-5 sm:gap-6 2xl:flex-row 2xl:items-center">
         <div className="flex-1 space-y-3 sm:space-y-4">
           <div className="flex items-center space-x-2">
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#42E8FF]/15 text-[#42E8FF] border border-[#42E8FF]/30 shadow-[0_0_12px_rgba(66,232,255,0.2)]">
