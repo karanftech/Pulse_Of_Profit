@@ -86,7 +86,7 @@ interface ReportItem {
 
 type BulletinBlock =
   | { id: string; type: 'text'; text: string }
-  | { id: string; type: 'media'; file?: File; previewUrl?: string };
+  | { id: string; type: 'media'; files?: File[]; previewUrls?: string[] };
 
 const createBulletinBlockId = () => `bulletin-block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -118,7 +118,7 @@ export default function VyavasthapakAdminPage() {
 
   // Publish Bulletin Form
   const [bulletinTitle, setBulletinTitle] = useState('PULSE OF PROFIT BULLETIN 🗞️');
-  const [bulletinAuthor, setBulletinAuthor] = useState('VYAVASTHAPAK ADMIN');
+  const [bulletinAuthor, setBulletinAuthor] = useState('Pulse of Profit Admin');
   const [bulletinBlocks, setBulletinBlocks] = useState<BulletinBlock[]>(() => [
     { id: createBulletinBlockId(), type: 'text', text: '' },
   ]);
@@ -146,23 +146,41 @@ export default function VyavasthapakAdminPage() {
     setBulletinBlocks((current) => current.map((block) => block.id === id && block.type === 'text' ? { ...block, text } : block));
   };
 
-  const updateBulletinMedia = (id: string, file?: File) => {
-    if (file) {
+  const updateBulletinMedia = (id: string, fileList?: FileList | null) => {
+    const files = Array.from(fileList || []);
+    const invalidFile = files.find((file) => {
       const hasImageType = file.type ? file.type.startsWith('image/') : /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i.test(file.name);
-      if (!hasImageType) {
-        showToast('Choose an image file for this bulletin block');
-        return;
-      }
+      return !hasImageType;
+    });
+    if (invalidFile) {
+      showToast('Please choose image files only.');
+      return;
     }
-    const previousBlock = bulletinBlocks.find((block) => block.id === id);
-    if (previousBlock?.type === 'media' && previousBlock.previewUrl) URL.revokeObjectURL(previousBlock.previewUrl);
-    const previewUrl = file ? URL.createObjectURL(file) : undefined;
+    if (!files.length) return;
+
+    const previewUrls = files.map((file) => URL.createObjectURL(file));
     setBulletinBlocks((current) => current.map((block) => {
       if (block.id !== id || block.type !== 'media') return block;
-      return file
-        ? { ...block, file, previewUrl }
-        : { ...block, file: undefined, previewUrl: undefined };
+      return {
+        ...block,
+        files: [...(block.files || []), ...files],
+        previewUrls: [...(block.previewUrls || []), ...previewUrls],
+      };
     }));
+  };
+
+  const removeBulletinMediaFile = (id: string, fileIndex: number) => {
+    const block = bulletinBlocks.find((item) => item.id === id);
+    if (block?.type !== 'media') return;
+    const previewUrl = block.previewUrls?.[fileIndex];
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setBulletinBlocks((current) => current.map((item) => item.id === id && item.type === 'media'
+      ? {
+          ...item,
+          files: (item.files || []).filter((_, index) => index !== fileIndex),
+          previewUrls: (item.previewUrls || []).filter((_, index) => index !== fileIndex),
+        }
+      : item));
   };
 
   const moveBulletinBlock = (index: number, direction: -1 | 1) => {
@@ -177,7 +195,7 @@ export default function VyavasthapakAdminPage() {
 
   const removeBulletinBlock = (id: string) => {
     const removed = bulletinBlocks.find((block) => block.id === id);
-    if (removed?.type === 'media' && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+    if (removed?.type === 'media') removed.previewUrls?.forEach((url) => URL.revokeObjectURL(url));
     setBulletinBlocks((current) => {
       const next = current.filter((item) => item.id !== id);
       return next.length ? next : [{ id: createBulletinBlockId(), type: 'text', text: '' }];
@@ -266,7 +284,7 @@ export default function VyavasthapakAdminPage() {
         localStorage.setItem('vyavasthapak_token', data.access_token);
         localStorage.setItem('vyavasthapak_session_expires_at', String(Date.now() + ADMIN_SESSION_DURATION_MS));
         setIsAuthenticated(true);
-        showToast('Admin Registered & Authenticated!');
+        showToast('Admin account created.');
         fetchDashboardData();
       } else {
         const err = await res.json();
@@ -296,7 +314,7 @@ export default function VyavasthapakAdminPage() {
         localStorage.setItem('vyavasthapak_token', data.access_token);
         localStorage.setItem('vyavasthapak_session_expires_at', String(Date.now() + ADMIN_SESSION_DURATION_MS));
         setIsAuthenticated(true);
-        showToast('Authenticated into Vyavasthapak Admin Panel');
+        showToast('Signed in.');
         fetchDashboardData();
       } else {
         const err = await res.json();
@@ -480,13 +498,12 @@ export default function VyavasthapakAdminPage() {
 
     setPublishing(true);
     try {
-      const mediaBlocks = bulletinBlocks.filter((block): block is Extract<BulletinBlock, { type: 'media' }> => block.type === 'media' && Boolean(block.file));
+      const mediaBlocks = bulletinBlocks.filter((block): block is Extract<BulletinBlock, { type: 'media' }> => block.type === 'media' && Boolean(block.files?.length));
+      const filesToUpload = mediaBlocks.flatMap((block) => block.files || []);
       let uploadedUrls: string[] = [];
-      if (mediaBlocks.length > 0) {
+      if (filesToUpload.length > 0) {
         const formData = new FormData();
-        mediaBlocks.forEach((block) => {
-          formData.append('files', block.file!);
-        });
+        filesToUpload.forEach((file) => formData.append('files', file));
 
         const uploadRes = await fetch(`${API_BASE_URL}/api/vyavasthapak/upload-multiple`, {
           method: 'POST',
@@ -505,20 +522,25 @@ export default function VyavasthapakAdminPage() {
         }
       }
 
-      if (uploadedUrls.length !== mediaBlocks.length) {
+      if (uploadedUrls.length !== filesToUpload.length) {
         showToast('Some media did not upload. Please try again.');
         return;
       }
 
       let uploadIndex = 0;
-      const contentBlocks = bulletinBlocks.flatMap((block) => {
+      const contentBlocks: Array<{ type: 'text'; text: string } | { type: 'media'; urls: string[] }> = [];
+      bulletinBlocks.forEach((block) => {
         if (block.type === 'text') {
-          return block.text.trim() ? [{ type: 'text' as const, text: block.text.trim() }] : [];
+          if (block.text.trim()) contentBlocks.push({ type: 'text', text: block.text.trim() });
+          return;
         }
-        if (!block.file) return [];
-        return [{ type: 'media' as const, url: uploadedUrls[uploadIndex++] }];
+        if (block.files?.length) {
+          const urls = uploadedUrls.slice(uploadIndex, uploadIndex + block.files.length);
+          uploadIndex += block.files.length;
+          contentBlocks.push({ type: 'media', urls });
+        }
       });
-      const mediaUrls = contentBlocks.flatMap((block) => block.type === 'media' ? [block.url] : []);
+      const mediaUrls = contentBlocks.flatMap((block) => block.type === 'media' ? block.urls : []);
 
       const res = await fetch(`${API_BASE_URL}/api/vyavasthapak/posts`, {
         method: 'POST',
@@ -537,15 +559,15 @@ export default function VyavasthapakAdminPage() {
         const newPost = await res.json();
         setPosts(prev => [newPost, ...prev]);
         bulletinBlocks.forEach((block) => {
-          if (block.type === 'media' && block.previewUrl) URL.revokeObjectURL(block.previewUrl);
+          if (block.type === 'media') block.previewUrls?.forEach((url) => URL.revokeObjectURL(url));
         });
         setBulletinBlocks([{ id: createBulletinBlockId(), type: 'text', text: '' }]);
-        showToast('Official Bulletin published successfully!');
+        showToast('Post published.');
         setActiveTab('posts');
         fetchDashboardData();
       }
     } catch (err) {
-      showToast('Error publishing bulletin');
+      showToast('Could not publish post.');
     } finally {
       setPublishing(false);
     }
@@ -578,10 +600,10 @@ export default function VyavasthapakAdminPage() {
             <div className="flex items-center space-x-2">
               <span className="px-2.5 py-1 rounded-lg bg-[#42E8FF]/10 text-[#42E8FF] border border-[#42E8FF]/30 text-[10px] font-extrabold uppercase tracking-widest flex items-center space-x-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Vyavasthapak Control</span>
+                <span>Admin</span>
               </span>
               <h1 className="text-base sm:text-lg font-bold text-white tracking-tight hidden sm:block">
-                Pulse of Profit Admin Portal
+                Pulse of Profit Admin
               </h1>
             </div>
           </div>
@@ -599,9 +621,9 @@ export default function VyavasthapakAdminPage() {
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#2D9CFF] to-[#42E8FF] flex items-center justify-center shadow-lg shadow-[#42E8FF]/20 text-black">
                 <Lock className="w-7 h-7 stroke-[2.5]" />
               </div>
-              <h2 className="text-2xl font-extrabold text-white tracking-tight">Vyavasthapak Gate</h2>
+              <h2 className="text-2xl font-extrabold text-white tracking-tight">Admin Sign In</h2>
               <p className="text-xs text-[#A0A7B5]">
-                Administrator authentication portal for Pulse of Profit platform.
+                Sign in to manage posts and users.
               </p>
             </div>
 
@@ -616,7 +638,7 @@ export default function VyavasthapakAdminPage() {
                     : 'text-[#A0A7B5] hover:text-white'
                 }`}
               >
-                Admin Login
+                Sign In
               </button>
               <button
                 type="button"
@@ -627,7 +649,7 @@ export default function VyavasthapakAdminPage() {
                     : 'text-[#A0A7B5] hover:text-white'
                 }`}
               >
-                Admin Register
+                Create Admin
               </button>
             </div>
 
@@ -642,7 +664,7 @@ export default function VyavasthapakAdminPage() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#A0A7B5] mb-2">
-                    Admin Passcode
+                    Password
                   </label>
                   <div className="relative">
                     <Key className="w-4 h-4 text-[#A0A7B5] absolute left-3.5 top-3.5" />
@@ -650,7 +672,7 @@ export default function VyavasthapakAdminPage() {
                       type={showPasscode ? 'text' : 'password'}
                       value={passcode}
                       onChange={(e) => setPasscode(e.target.value)}
-                      placeholder="Enter administrator passcode"
+                      placeholder="Enter your password"
                       className="w-full pl-10 pr-10 py-3 rounded-xl bg-[#0D1624] border border-white/10 focus:border-[#42E8FF] focus:outline-none text-sm text-white placeholder:text-[#A0A7B5]/60 transition-colors"
                       required
                     />
@@ -674,7 +696,7 @@ export default function VyavasthapakAdminPage() {
                     <RefreshCw className="w-4 h-4 animate-spin text-black" />
                   ) : (
                     <>
-                      <span>Authenticate Admin</span>
+                      <span>Sign In</span>
                       <ShieldCheck className="w-4 h-4 text-black" />
                     </>
                   )}
@@ -726,14 +748,14 @@ export default function VyavasthapakAdminPage() {
 
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#A0A7B5] mb-1">
-                    Set Admin Passcode
+                    Password
                   </label>
                   <div className="relative">
                     <input
                       type={showPasscode ? 'text' : 'password'}
                       value={regPasscode}
                       onChange={(e) => setRegPasscode(e.target.value)}
-                      placeholder="Set passcode for admin access"
+                      placeholder="Create a password"
                       className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-[#0D1624] border border-white/10 focus:border-[#42E8FF] focus:outline-none text-xs text-white"
                       required
                     />
@@ -757,7 +779,7 @@ export default function VyavasthapakAdminPage() {
                     <RefreshCw className="w-4 h-4 animate-spin text-black" />
                   ) : (
                     <>
-                      <span>Register & Create Admin</span>
+                      <span>Create Account</span>
                       <ShieldCheck className="w-4 h-4 text-black" />
                     </>
                   )}
@@ -766,7 +788,7 @@ export default function VyavasthapakAdminPage() {
             )}
 
             <div className="mt-6 pt-4 border-t border-white/5 text-center text-[11px] text-[#A0A7B5]">
-              Protected Endpoint: <span className="font-mono text-[#42E8FF]">/api/vyavasthapak</span>
+              Secure admin access
             </div>
           </div>
         </div>
@@ -780,9 +802,9 @@ export default function VyavasthapakAdminPage() {
               <div>
                 <div className="flex items-center space-x-2 text-xs font-semibold text-[#42E8FF] uppercase tracking-wider mb-1">
                   <Activity className="w-4 h-4 text-[#42E8FF]" />
-                  <span>Real-time Vyavasthapak Telemetry</span>
+                  <span>Admin Dashboard</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-white">System Overview & Management</h2>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Overview</h2>
               </div>
 
               {/* Navigation Tabs */}
@@ -794,7 +816,7 @@ export default function VyavasthapakAdminPage() {
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
-                  <span>Telemetry</span>
+                  <span>Overview</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('posts')}
@@ -812,7 +834,7 @@ export default function VyavasthapakAdminPage() {
                   }`}
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Publish Bulletin</span>
+                  <span>Publish Post</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('users')}
@@ -834,25 +856,25 @@ export default function VyavasthapakAdminPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-5 rounded-2xl glass-panel border border-white/10">
                   <div className="flex items-center justify-between text-[#A0A7B5] mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider">Total Bulletins</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Posts</span>
                     <FileText className="w-4 h-4 text-[#42E8FF]" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-white">{stats?.total_posts || posts.length}</div>
-                  <span className="text-[10px] text-[#4DFFB8] font-medium">Published on feed</span>
+                  <span className="text-[10px] text-[#4DFFB8] font-medium">Published</span>
                 </div>
 
                 <div className="p-5 rounded-2xl glass-panel border border-white/10">
                   <div className="flex items-center justify-between text-[#A0A7B5] mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider">Registered Users</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Users</span>
                     <Users className="w-4 h-4 text-[#4DFFB8]" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-white">{stats?.total_users || users.length}</div>
-                  <span className="text-[10px] text-[#42E8FF] font-medium">Active accounts</span>
+                  <span className="text-[10px] text-[#42E8FF] font-medium">Accounts</span>
                 </div>
 
                 <div className="p-5 rounded-2xl glass-panel border border-white/10">
                   <div className="flex items-center justify-between text-[#A0A7B5] mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider">Total Engagement</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Activity</span>
                     <MessageSquare className="w-4 h-4 text-cyan-400" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-white">{(stats?.total_likes || 0) + (stats?.total_comments || 0)}</div>
@@ -861,11 +883,11 @@ export default function VyavasthapakAdminPage() {
 
                 <div className="p-5 rounded-2xl glass-panel border border-white/10">
                   <div className="flex items-center justify-between text-[#A0A7B5] mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider">Pending Flags</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Reports</span>
                     <ShieldAlert className="w-4 h-4 text-amber-400" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-amber-400">{reports.length}</div>
-                  <span className="text-[10px] text-amber-400 font-medium">Requires review</span>
+                  <span className="text-[10px] text-amber-400 font-medium">Needs review</span>
                 </div>
               </div>
 
@@ -875,17 +897,17 @@ export default function VyavasthapakAdminPage() {
                   <div>
                     <h3 className="text-base font-bold text-white mb-2 flex items-center space-x-2">
                       <Send className="w-4 h-4 text-[#42E8FF]" />
-                      <span>Broadcast Bulletin</span>
+                      <span>Publish a Post</span>
                     </h3>
                     <p className="text-xs text-[#A0A7B5] mb-4">
-                      Publish a new official market bulletin directly to the main feed with high priority.
+                      Share a new post with everyone.
                     </p>
                   </div>
                   <button
                     onClick={() => setActiveTab('publish')}
                     className="w-full py-2.5 rounded-xl btn-cyan-gradient text-xs font-bold text-black"
                   >
-                    Open Dispatch Form
+                    Write a Post
                   </button>
                 </div>
 
@@ -893,17 +915,17 @@ export default function VyavasthapakAdminPage() {
                   <div>
                     <h3 className="text-base font-bold text-white mb-2 flex items-center space-x-2">
                       <FileText className="w-4 h-4 text-[#4DFFB8]" />
-                      <span>Manage Content</span>
+                      <span>Manage Posts</span>
                     </h3>
                     <p className="text-xs text-[#A0A7B5] mb-4">
-                      Review all posts, filter dispatches, or purge unwanted content from the database.
+                      Find or remove posts.
                     </p>
                   </div>
                   <button
                     onClick={() => setActiveTab('posts')}
                     className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-bold text-white"
                   >
-                    View All Posts
+                    View Posts
                   </button>
                 </div>
 
@@ -911,17 +933,17 @@ export default function VyavasthapakAdminPage() {
                   <div>
                     <h3 className="text-base font-bold text-white mb-2 flex items-center space-x-2">
                       <Users className="w-4 h-4 text-purple-400" />
-                      <span>User Governance</span>
+                      <span>Manage Users</span>
                     </h3>
                     <p className="text-xs text-[#A0A7B5] mb-4">
-                      Inspect user accounts, manage moderator permissions, or block toxic profiles.
+                      View user accounts and manage access.
                     </p>
                   </div>
                   <button
                     onClick={() => setActiveTab('users')}
                     className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-bold text-white"
                   >
-                    Open Directory
+                    View Users
                   </button>
                 </div>
               </div>
@@ -938,7 +960,7 @@ export default function VyavasthapakAdminPage() {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search posts by title, content or author..."
+                    placeholder="Search posts..."
                     className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#0D1624] border border-white/10 focus:border-[#42E8FF] text-xs text-white placeholder:text-gray-600 focus:outline-none"
                   />
                 </div>
@@ -947,14 +969,14 @@ export default function VyavasthapakAdminPage() {
                   className="px-4 py-2 rounded-xl btn-cyan-gradient text-xs font-bold text-black flex items-center space-x-1.5 self-start sm:self-auto"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Create Bulletin</span>
+                  <span>New Post</span>
                 </button>
               </div>
 
               <div className="space-y-4">
                 {filteredPosts.length === 0 ? (
                   <div className="p-8 text-center glass-panel rounded-2xl border border-white/10 text-[#A0A7B5] text-xs">
-                    No posts found matching search query.
+                    No posts found.
                   </div>
                 ) : (
                   filteredPosts.map((post) => (
@@ -982,10 +1004,10 @@ export default function VyavasthapakAdminPage() {
                             setManualLikesInput(post.likes);
                           }}
                           className="px-3 py-1.5 rounded-xl bg-[#42E8FF]/10 hover:bg-[#42E8FF]/20 text-[#42E8FF] border border-[#42E8FF]/30 text-xs font-bold flex items-center space-x-1 transition-all"
-                          title="Manage likes & custom comments"
+                          title="Edit likes and comments"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Manage</span>
+                            <span>Edit</span>
                         </button>
                         <Link
                           href={`/posts/${post.id}`}
@@ -1016,7 +1038,7 @@ export default function VyavasthapakAdminPage() {
               <div className="w-full max-w-lg bg-[#0D1624] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <div>
-                    <span className="text-[10px] text-[#42E8FF] font-mono uppercase font-bold">Post #{activeManagePost.id}</span>
+                  <span className="text-[10px] text-[#42E8FF] font-mono uppercase font-bold">Post</span>
                     <h3 className="text-base font-bold text-white line-clamp-1">{activeManagePost.title}</h3>
                   </div>
                   <button
@@ -1030,7 +1052,7 @@ export default function VyavasthapakAdminPage() {
                 {/* Section 1: Manual Likes Count */}
                 <div className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/5">
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-1.5">
-                    <span>Set Likes Count</span>
+                    <span>Likes</span>
                   </h4>
                   <div className="flex items-center space-x-3">
                     <input
@@ -1044,34 +1066,34 @@ export default function VyavasthapakAdminPage() {
                       onClick={() => handleSaveManualLikes(activeManagePost.id, manualLikesInput)}
                       className="px-4 py-2 rounded-xl btn-cyan-gradient text-xs font-bold text-black"
                     >
-                      Update Likes
+                      Save
                     </button>
                   </div>
                 </div>
 
-                {/* Section 2: Add Fake / Custom Comment */}
+                {/* Add a comment */}
                 <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/5">
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Add Custom / Fake Comment
+                    Add a Comment
                   </h4>
                   <div className="space-y-2">
                     <input
                       type="text"
-                      placeholder="Author Name (e.g. Ramesh Kumar)"
+                      placeholder="Name"
                       value={fakeCommentAuthor}
                       onChange={(e) => setFakeCommentAuthor(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl bg-[#050505] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#42E8FF]"
                     />
                     <input
                       type="text"
-                      placeholder="Avatar Image URL (Optional)"
+                      placeholder="Profile photo URL (optional)"
                       value={fakeCommentAvatar}
                       onChange={(e) => setFakeCommentAvatar(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl bg-[#050505] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#42E8FF]"
                     />
                     <textarea
                       rows={2}
-                      placeholder="Comment content text..."
+                      placeholder="Write a comment..."
                       value={fakeCommentContent}
                       onChange={(e) => setFakeCommentContent(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl bg-[#050505] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#42E8FF] resize-none"
@@ -1088,10 +1110,10 @@ export default function VyavasthapakAdminPage() {
                 {/* Section 3: Existing Comments List */}
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-[#A0A7B5] uppercase tracking-wider">
-                    Existing Comments ({activeManagePost.comments?.length || 0})
+                    Comments ({activeManagePost.comments?.length || 0})
                   </h4>
                   {(!activeManagePost.comments || activeManagePost.comments.length === 0) ? (
-                    <p className="text-xs text-[#A0A7B5] italic">No comments on this post.</p>
+                    <p className="text-xs text-[#A0A7B5] italic">No comments yet.</p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {activeManagePost.comments.map((c) => (
@@ -1124,14 +1146,14 @@ export default function VyavasthapakAdminPage() {
             <div className="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl glass-panel border border-white/10">
               <div className="flex items-center space-x-2 text-xs font-semibold text-[#42E8FF] uppercase tracking-wider mb-2">
                 <Send className="w-4 h-4 text-[#42E8FF]" />
-                <span>Vyavasthapak Broadcast Engine</span>
+                <span>New Post</span>
               </div>
-              <h3 className="text-xl font-bold text-white mb-6">Publish Official Market Bulletin</h3>
+              <h3 className="text-xl font-bold text-white mb-6">Publish a Post</h3>
 
               <form onSubmit={handlePublishBulletin} className="space-y-5">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#A0A7B5] uppercase tracking-wider mb-1.5">
-                    Bulletin Title
+                    Post Title
                   </label>
                   <input
                     type="text"
@@ -1144,7 +1166,7 @@ export default function VyavasthapakAdminPage() {
 
                 <div>
                   <label className="block text-[11px] font-semibold text-[#A0A7B5] uppercase tracking-wider mb-1.5">
-                    Author / Dispatch Name
+                    Author Name
                   </label>
                   <input
                     type="text"
@@ -1159,9 +1181,9 @@ export default function VyavasthapakAdminPage() {
                   <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#A0A7B5]">
-                        Bulletin Content Layout
+                        Post Content
                       </label>
-                      <p className="mt-1 text-[10px] text-[#748094]">Add text and media blocks, then arrange them in the order you want.</p>
+                      <p className="mt-1 text-[10px] text-[#748094]">Add text and photos, then arrange them as you like.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => addBulletinBlock(bulletinBlocks.length, 'text')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-slate-200 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">
@@ -1179,7 +1201,7 @@ export default function VyavasthapakAdminPage() {
                         <div className="rounded-2xl border border-white/10 bg-[#0D1624]/75 p-3 sm:p-4">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-[#42E8FF]">
-                              {block.type === 'text' ? 'Text block' : 'Photo block'} · {index + 1}
+                              {block.type === 'text' ? 'Text' : 'Photos'} · {index + 1}
                             </span>
                             <div className="flex items-center gap-1">
                               <button type="button" onClick={() => moveBulletinBlock(index, -1)} disabled={index === 0} aria-label="Move block up" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">
@@ -1199,24 +1221,31 @@ export default function VyavasthapakAdminPage() {
                               rows={5}
                               value={block.text}
                               onChange={(e) => updateBulletinText(block.id, e.target.value)}
-                              placeholder="Write market commentary or an announcement..."
+                              placeholder="Write your post..."
                               className="w-full rounded-xl border border-white/10 bg-[#080d16] px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:border-[#42E8FF] focus:outline-none"
                             />
-                          ) : block.previewUrl ? (
-                            <div className="space-y-2">
-                              <div className="relative aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-black/20">
-                                <img src={block.previewUrl} alt={`Bulletin content block ${index + 1}`} className="h-full w-full object-contain" />
+                          ) : block.previewUrls?.length ? (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {block.previewUrls.map((previewUrl, fileIndex) => (
+                                  <div key={`${block.id}-${fileIndex}`} className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                                    <img src={previewUrl} alt={`Bulletin photo ${fileIndex + 1}`} className="h-full w-full object-cover" />
+                                    <button type="button" onClick={() => removeBulletinMediaFile(block.id, fileIndex)} aria-label={`Remove photo ${fileIndex + 1}`} className="absolute right-2 top-2 rounded-full bg-black/80 p-1.5 text-white hover:bg-red-500">
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-[11px] text-slate-300 hover:border-[#42E8FF]/40 hover:text-white">
-                                Change file
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => updateBulletinMedia(block.id, e.target.files?.[0])} />
+                                <Plus className="h-3.5 w-3.5" /> Add more photos
+                                <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { updateBulletinMedia(block.id, e.currentTarget.files); e.currentTarget.value = ''; }} />
                               </label>
                             </div>
                           ) : (
                             <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-[#080d16]/70 px-4 py-8 text-center transition hover:border-[#42E8FF]/40">
-                              <input type="file" accept="image/*" className="hidden" onChange={(e) => updateBulletinMedia(block.id, e.target.files?.[0])} />
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { updateBulletinMedia(block.id, e.currentTarget.files); e.currentTarget.value = ''; }} />
                               <UploadCloud className="mb-2 h-7 w-7 text-slate-400" />
-                              <span className="text-xs font-semibold text-white">Choose an image</span>
+                              <span className="text-xs font-semibold text-white">Choose photos</span>
                               <span className="mt-1 text-[10px] text-slate-500">JPG, PNG, WEBP, GIF, SVG</span>
                             </label>
                           )}
@@ -1224,8 +1253,8 @@ export default function VyavasthapakAdminPage() {
 
                         {index < bulletinBlocks.length - 1 && (
                           <div className="flex flex-wrap justify-center gap-2 py-1">
-                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'text')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Insert text here</button>
-                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'media')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Insert photo here</button>
+                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'text')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Add text</button>
+                            <button type="button" onClick={() => addBulletinBlock(index + 1, 'media')} className="rounded-full border border-white/10 bg-[#080d16] px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:border-[#42E8FF]/40 hover:text-[#42E8FF]">+ Add photos</button>
                           </div>
                         )}
                       </React.Fragment>
@@ -1242,7 +1271,7 @@ export default function VyavasthapakAdminPage() {
                     <RefreshCw className="w-4 h-4 animate-spin text-black" />
                   ) : (
                     <>
-                      <span>Broadcast Bulletin To Feed</span>
+                      <span>Publish Post</span>
                       <Send className="w-4 h-4 text-black" />
                     </>
                   )}
@@ -1255,7 +1284,7 @@ export default function VyavasthapakAdminPage() {
           {activeTab === 'users' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Registered User Directory ({users.length})</h3>
+                <h3 className="text-lg font-bold text-white">Users ({users.length})</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

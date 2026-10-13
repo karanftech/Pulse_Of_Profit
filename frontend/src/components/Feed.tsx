@@ -16,12 +16,13 @@ import {
   Download, 
   Sparkles,
   AlertTriangle,
-  Send
+  Send,
+  UserRound
 } from 'lucide-react';
 import ShareModal from '@/components/ShareModal';
 import { useAuth } from '../context/AuthContext';
 
-import { getPostContentBlocks, Post, Comment } from '@/types/post';
+import { getPostBlockMediaUrls, getPostContentBlocks, Post, PostContentBlock, Comment } from '@/types/post';
 
 interface FeedProps {
   posts: Post[];
@@ -349,6 +350,22 @@ export default function Feed({
         ) : (
           visiblePosts.map((post) => {
             const contentBlocks = getPostContentBlocks(post);
+            const previewBlocks: PostContentBlock[] = [];
+            let hasPreviewText = false;
+            let hasPreviewImage = false;
+            for (const block of contentBlocks) {
+              if (block.type === 'text' && !hasPreviewText && block.text.trim()) {
+                previewBlocks.push(block);
+                hasPreviewText = true;
+              } else if (block.type === 'media' && !hasPreviewImage) {
+                const firstImage = getPostBlockMediaUrls(block)[0];
+                if (firstImage) {
+                  previewBlocks.push({ type: 'media', url: firstImage });
+                  hasPreviewImage = true;
+                }
+              }
+              if (hasPreviewText && hasPreviewImage) break;
+            }
             if (hiddenPostIds[post.id]) {
               return (
                 <div 
@@ -411,10 +428,13 @@ export default function Feed({
                 <div className="space-y-4">
                   {/* Meta Details & Action Controls */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-xs text-[#A0A7B5]">
-                      <span className="font-bold text-white uppercase tracking-wider">{post.author}</span>
-                      <span>•</span>
-                      <span className="font-mono">{post.date}</span>
+                    <div className="flex min-w-0 items-center gap-2.5 text-xs text-[#A0A7B5]">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#0D1624] text-slate-300" aria-hidden="true">
+                        <UserRound className="h-4 w-4" />
+                      </span>
+                      <span className="truncate font-bold text-white uppercase tracking-wider">{post.author}</span>
+                      <span aria-hidden="true">·</span>
+                      <time className="shrink-0 font-mono">{post.date}</time>
                     </div>
 
                     <div className="flex items-center space-x-2 relative z-10">
@@ -482,26 +502,30 @@ export default function Feed({
                     <h3 className="font-display font-bold text-base sm:text-lg md:text-xl text-white group-hover:text-[#42E8FF] transition-colors leading-snug">
                       {post.title}
                     </h3>
-                    <p className="text-[11px] sm:text-xs font-mono text-[#A0A7B5]">
-                      Published: {post.date}
-                    </p>
                   </div>
 
                   <div className="mt-2 space-y-3">
-                    {contentBlocks.map((block, idx) => {
+                    {previewBlocks.map((block, idx) => {
                       if (block.type === 'text') {
                         return <p key={`text-${idx}`} className="whitespace-pre-line text-xs leading-relaxed text-[#A0A7B5] line-clamp-3 sm:text-sm">{block.text}</p>;
                       }
 
-                      const fullUrl = block.url.startsWith('/') ? `${apiBaseUrl}${block.url}` : block.url;
-                      const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(block.url);
+                      const mediaUrls = getPostBlockMediaUrls(block);
                       return (
-                        <div key={`media-${idx}`} className="relative aspect-[16/9] w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0D1624]">
-                          {isVideo ? (
-                            <video src={fullUrl} controls className="h-full w-full object-cover" />
-                          ) : (
-                            <img src={fullUrl} alt={`Bulletin media ${idx + 1}`} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
-                          )}
+                        <div key={`media-${idx}`} className="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+                          {mediaUrls.map((media, mediaIndex) => {
+                            const fullUrl = media.startsWith('/') ? `${apiBaseUrl}${media}` : media;
+                            const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(media);
+                            return (
+                              <div key={`${media}-${mediaIndex}`} className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0D1624]">
+                                {isVideo ? (
+                                  <video src={fullUrl} controls className="h-full w-full object-cover" />
+                                ) : (
+                                  <img src={fullUrl} alt={`Bulletin media ${mediaIndex + 1}`} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}

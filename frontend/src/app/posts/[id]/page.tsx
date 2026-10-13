@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, UserRound } from 'lucide-react';
 import { API_BASE_URL, useAuth } from '@/context/AuthContext';
-import { getPostContentBlocks, Post } from '@/types/post';
+import { getPostBlockMediaUrls, getPostContentBlocks, Post } from '@/types/post';
 
 const fallbackPosts: Post[] = [
   {
@@ -124,7 +124,10 @@ export default function PostDetail() {
           <header className="mb-8 border-b border-white/10 pb-7">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#42E8FF]">Pulse of Profit Bulletin</p>
             <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-5xl">{post.title}</h1>
-            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+            <div className="mt-5 flex flex-wrap items-center gap-2.5 text-xs text-slate-400">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#0D1624] text-slate-300" aria-hidden="true">
+                <UserRound className="h-4 w-4" />
+              </span>
               <span className="font-semibold text-slate-200">{post.author}</span>
               <span aria-hidden="true">·</span>
               <time>{post.date}</time>
@@ -137,12 +140,19 @@ export default function PostDetail() {
                 return <p key={`text-${index}`} className="whitespace-pre-line text-base leading-8 text-slate-200 sm:text-lg sm:leading-9">{block.text}</p>;
               }
 
-              const src = block.url.startsWith('/') ? `${API_BASE_URL}${block.url}` : block.url;
-              const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(block.url);
-              return isVideo ? (
-                <video key={`media-${index}`} src={src} controls className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
-              ) : (
-                <img key={`media-${index}`} src={src} alt={`${post.title} media ${index + 1}`} className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
+              const mediaUrls = getPostBlockMediaUrls(block);
+              return (
+                <div key={`media-${index}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {mediaUrls.map((media, mediaIndex) => {
+                    const src = media.startsWith('/') ? `${API_BASE_URL}${media}` : media;
+                    const isVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(media);
+                    return isVideo ? (
+                      <video key={`${media}-${mediaIndex}`} src={src} controls className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
+                    ) : (
+                      <img key={`${media}-${mediaIndex}`} src={src} alt={`${post.title} media ${mediaIndex + 1}`} className="h-auto w-full rounded-2xl border border-white/10 object-contain" />
+                    );
+                  })}
+                </div>
               );
             })}
           </div>

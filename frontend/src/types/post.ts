@@ -8,7 +8,12 @@ export interface Comment {
 
 export type PostContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'media'; url: string };
+  | { type: 'media'; url?: string; urls?: string[] };
+
+export function getPostBlockMediaUrls(block: Extract<PostContentBlock, { type: 'media' }>): string[] {
+  if (block.urls?.length) return block.urls;
+  return block.url ? [block.url] : [];
+}
 
 export interface Post {
   id: string;
