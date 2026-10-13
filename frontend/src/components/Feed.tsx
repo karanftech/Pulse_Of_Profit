@@ -9,7 +9,6 @@ import {
   Share2, 
   MoreHorizontal, 
   X, 
-  Plus, 
   Link2, 
   UserMinus, 
   UserPlus, 
@@ -20,7 +19,6 @@ import {
   Send
 } from 'lucide-react';
 import ShareModal from '@/components/ShareModal';
-import CreatePostModal from './CreatePostModal';
 import { useAuth } from '../context/AuthContext';
 
 import { Post, Comment } from '@/types/post';
@@ -66,7 +64,6 @@ export default function Feed({
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
-  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
   // Bell, Cross & Dot states
   const [activeThreeDotPostId, setActiveThreeDotPostId] = useState<string | null>(null);
