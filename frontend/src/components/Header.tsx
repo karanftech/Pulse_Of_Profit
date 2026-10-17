@@ -47,12 +47,14 @@ export default function Header({
       document.addEventListener('mousedown', handleOutsideInteraction);
       document.addEventListener('touchstart', handleOutsideInteraction);
       document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('mousedown', handleOutsideInteraction);
       document.removeEventListener('touchstart', handleOutsideInteraction);
       document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
     };
   }, [isNotificationsOpen]);
 

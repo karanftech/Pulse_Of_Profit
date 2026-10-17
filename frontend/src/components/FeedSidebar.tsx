@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Compass, Home, Menu, Search, Trash2, UserRound, X } from 'lucide-react';
 
@@ -41,6 +41,42 @@ export default function FeedSidebar({
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const unreadCount = notifications.filter((item) => !item.read).length;
 
+  const isLocked = isNotificationsOpen || isMoreOpen;
+
+  useEffect(() => {
+    if (!isLocked) return;
+
+    const scrollY = window.scrollY;
+    const previousBodyStyles = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    };
+
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsNotificationsOpen(false);
+        setIsMoreOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.position = previousBodyStyles.position;
+      document.body.style.top = previousBodyStyles.top;
+      document.body.style.width = previousBodyStyles.width;
+      document.body.style.overflow = previousBodyStyles.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isLocked]);
+
   const openNotification = (item: NotificationItem) => {
     setNotifications(notifications.map((notification) => notification.id === item.id ? { ...notification, read: true } : notification));
     setIsNotificationsOpen(false);
@@ -53,7 +89,6 @@ export default function FeedSidebar({
       <header className="sticky top-0 z-40 flex h-[68px] items-center justify-between border-b border-white/10 bg-[#111216] px-5 lg:hidden">
         <a href="#top" className="flex items-center gap-3" aria-label="Pulse of Profit home">
           <img src="/logo.png" alt="" className="h-9 w-9 rounded-xl object-contain" />
-          <span className="text-xl font-semibold tracking-tight text-white">Home</span>
         </a>
         <button onClick={() => { setIsMoreOpen(!isMoreOpen); setIsNotificationsOpen(false); }} aria-label="Open more menu" aria-expanded={isMoreOpen} className="rounded-lg p-2 text-slate-300 hover:bg-white/10">
           <Menu className="h-6 w-6" />
@@ -76,7 +111,14 @@ export default function FeedSidebar({
             {unreadCount > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#42E8FF] px-1 text-[9px] font-bold text-slate-950 lg:static lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5 lg:text-[10px]">{unreadCount}</span>}
           </button>
           {isNotificationsOpen && (
-            <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] left-3 right-3 z-50 rounded-2xl border border-white/10 bg-[#0b111b] p-4 shadow-2xl lg:absolute lg:bottom-auto lg:left-full lg:right-auto lg:top-0 lg:ml-3 lg:w-[320px]">
+            <>
+              <button
+                type="button"
+                aria-label="Close notifications"
+                onClick={() => setIsNotificationsOpen(false)}
+                className="fixed inset-0 z-40 bg-black/20 lg:bg-transparent cursor-default"
+              />
+              <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh_-_7rem_-_env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#0b111b] p-4 shadow-2xl lg:absolute lg:bottom-auto lg:left-full lg:right-auto lg:top-0 lg:ml-3 lg:max-h-[min(70vh,32rem)] lg:w-[320px]">
               <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
                 <h2 className="text-sm font-bold text-white">Notifications</h2>
                 <div className="flex items-center gap-1">
@@ -85,7 +127,7 @@ export default function FeedSidebar({
                   <button onClick={() => setIsNotificationsOpen(false)} aria-label="Close notifications" className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
                 </div>
               </div>
-              <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+              <div className="space-y-2">
                 {notifications.length === 0 ? <p className="py-8 text-center text-xs text-slate-500">No active alerts</p> : notifications.map((item) => (
                   <button key={item.id} onClick={() => openNotification(item)} className={`w-full rounded-xl border p-3 text-left transition hover:border-[#42E8FF]/30 ${item.read ? 'border-white/5 bg-white/[0.025]' : 'border-[#42E8FF]/20 bg-[#42E8FF]/[0.06]'}`}>
                     <span className="block text-xs font-semibold text-white">{item.title}</span>
@@ -94,7 +136,8 @@ export default function FeedSidebar({
                   </button>
                 ))}
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
 
@@ -111,14 +154,22 @@ export default function FeedSidebar({
 
       <div className="relative mt-auto hidden lg:block">
         {isMoreOpen && (
-          <div className="absolute bottom-14 left-0 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl">
-            <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
-            <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
-            <div className="my-1 border-t border-white/10" />
-            <a href="#about" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">About</a>
-            <a href="#privacy" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Privacy</a>
-            <a href="#terms" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Terms</a>
-          </div>
+          <>
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setIsMoreOpen(false)}
+              className="fixed inset-0 z-40 bg-transparent cursor-default"
+            />
+            <div className="absolute bottom-14 left-0 z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl">
+              <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
+              <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
+              <div className="my-1 border-t border-white/10" />
+              <a href="#about" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">About</a>
+              <a href="#privacy" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Privacy</a>
+              <a href="#terms" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Terms</a>
+            </div>
+          </>
         )}
         <button onClick={() => { setIsMoreOpen(!isMoreOpen); setIsNotificationsOpen(false); }} aria-expanded={isMoreOpen} className={baseLinkClass}>
           <Menu className="h-5 w-5" /><span>More</span>
@@ -127,14 +178,22 @@ export default function FeedSidebar({
       </aside>
 
       {isMoreOpen && (
-        <div className="fixed right-3 top-[76px] z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl lg:hidden">
-          <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
-          <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
-          <div className="my-1 border-t border-white/10" />
-          <a href="#about" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">About</a>
-          <a href="#privacy" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Privacy</a>
-          <a href="#terms" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Terms</a>
-        </div>
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setIsMoreOpen(false)}
+            className="fixed inset-0 z-40 bg-black/30 cursor-default lg:hidden"
+          />
+          <div className="fixed right-3 top-[76px] z-50 w-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#121212] py-2 shadow-2xl lg:hidden">
+            <button onClick={() => { setIsMoreOpen(false); onSettingsClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Settings</button>
+            <button onClick={() => { setIsMoreOpen(false); onSupportClick(); }} className="block w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Support</button>
+            <div className="my-1 border-t border-white/10" />
+            <a href="#about" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">About</a>
+            <a href="#privacy" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Privacy</a>
+            <a href="#terms" onClick={() => setIsMoreOpen(false)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">Terms</a>
+          </div>
+        </>
       )}
     </>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, UserRound } from 'lucide-react';
@@ -47,9 +47,40 @@ const fallbackPosts: Post[] = [
 export default function PostDetail() {
   const routeParams = useParams();
   const postId = (routeParams?.id as string) || '';
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
+  const [commentText, setCommentText] = useState('');
+  const [commentError, setCommentError] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  const handleSubmitComment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!post || !token || !commentText.trim()) return;
+
+    setIsSubmittingComment(true);
+    setCommentError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/posts/${post.id}/comment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ author: user?.name || 'User', content: commentText.trim() }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Could not add your comment.');
+      }
+      setPost(await response.json());
+      setCommentText('');
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : 'Could not add your comment.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +119,13 @@ export default function PostDetail() {
 
     return () => { cancelled = true; };
   }, [postId, token]);
+
+  useEffect(() => {
+    if (!post || window.location.hash !== '#comments-section') return;
+    requestAnimationFrame(() => {
+      document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [post]);
 
   if (loading) {
     return (
@@ -156,6 +194,56 @@ export default function PostDetail() {
               );
             })}
           </div>
+
+          <section id="comments-section" className="mt-12 scroll-mt-24 border-t border-white/10 pt-8">
+            <h2 className="mb-5 text-xl font-bold text-white">
+              Comments <span className="text-sm font-medium text-slate-400">({post.comments?.length || 0})</span>
+            </h2>
+
+            {token && (
+              <form onSubmit={handleSubmitComment} className="mb-7 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  placeholder="Write a comment..."
+                  aria-label="Write a comment"
+                  maxLength={2000}
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0D1624] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#42E8FF]/50"
+                />
+                <button
+                  type="submit"
+                  disabled={!commentText.trim() || isSubmittingComment}
+                  className="rounded-xl bg-[#42E8FF] px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmittingComment ? 'Posting…' : 'Post comment'}
+                </button>
+                {commentError && <p role="alert" className="text-sm text-rose-400 sm:basis-full">{commentError}</p>}
+              </form>
+            )}
+
+            {post.comments?.length ? (
+              <div className="space-y-4">
+                {post.comments.map((comment) => (
+                  <article key={comment.id} className="flex gap-3 rounded-2xl border border-white/10 bg-[#0D1624]/70 p-4">
+                    <img
+                      src={comment.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(comment.author)}`}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-full border border-white/10 bg-[#080d16] object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-x-2 text-sm">
+                        <span className="font-semibold text-white">{comment.author}</span>
+                        <time className="text-xs text-slate-500">{comment.timestamp}</time>
+                      </div>
+                      <p className="whitespace-pre-line break-words text-sm leading-6 text-slate-300">{comment.content}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-white/10 bg-[#0D1624]/50 px-4 py-8 text-center text-sm text-slate-400">No comments yet.</p>
+            )}
+          </section>
         </article>
       </div>
     </main>

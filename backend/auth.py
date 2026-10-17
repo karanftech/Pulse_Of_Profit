@@ -63,6 +63,26 @@ def get_current_user_email(token: Optional[str] = Depends(oauth2_scheme)) -> Opt
     except JWTError:
         return None
 
+def ensure_user_not_blocked(email: str) -> None:
+    """Reject requests from accounts disabled by an administrator."""
+    from database import mongo_manager
+
+    normalized_email = email.strip().lower()
+    user = None
+    if mongo_manager.is_connected and mongo_manager.db is not None:
+        user = mongo_manager.db["users"].find_one({"email": normalized_email}, {"is_blocked": 1})
+    else:
+        user = next(
+            (item for item in mongo_manager.in_memory_users if item.get("email", "").lower() == normalized_email),
+            None,
+        )
+
+    if user and user.get("is_blocked", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been blocked. Contact support for help.",
+        )
+
 def require_current_user_email(email: Optional[str] = Depends(get_current_user_email)) -> str:
     if not email:
         raise HTTPException(
@@ -70,6 +90,7 @@ def require_current_user_email(email: Optional[str] = Depends(get_current_user_e
             detail="Authentication required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    ensure_user_not_blocked(email)
     return email
 
 def verify_admin_token(token: Optional[str] = Depends(oauth2_scheme)) -> str:
@@ -85,6 +106,8 @@ def verify_admin_token(token: Optional[str] = Depends(oauth2_scheme)) -> str:
         role: str = payload.get("role", "")
         email: str = payload.get("sub", "")
         if role == "admin":
+            if email:
+                ensure_user_not_blocked(email)
             return email or "admin"
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

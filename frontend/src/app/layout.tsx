@@ -16,11 +16,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-bg-dark text-text-dark min-h-screen">
-        <AuthProvider>
-          <AuthRouteGuard>{children}</AuthRouteGuard>
-          <AuthModal />
-        </AuthProvider>
+      <body className="min-h-screen bg-[#050505] text-white">
+        <div className="relative z-10 min-h-screen">
+          <AuthProvider>
+            <AuthRouteGuard>{children}</AuthRouteGuard>
+            <AuthModal />
+          </AuthProvider>
+        </div>
       </body>
     </html>
   )

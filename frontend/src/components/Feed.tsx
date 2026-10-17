@@ -39,6 +39,7 @@ interface FeedProps {
   addActivity: (message: string) => void;
   reportedPostIds: string[];
   setReportedPostIds: (ids: string[]) => void;
+  searchQuery?: string;
 }
 
 export default function Feed({ 
@@ -55,10 +56,11 @@ export default function Feed({
   setMutedAuthors,
   addActivity,
   reportedPostIds,
-  setReportedPostIds
+  setReportedPostIds,
+  searchQuery = ''
 }: FeedProps) {
   const router = useRouter();
-  const { token, openAuthModal } = useAuth();
+  const { token, user, openAuthModal, invalidateSession } = useAuth();
   
   // Interactive UI states
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -67,6 +69,10 @@ export default function Feed({
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
   const [shareAnchorElement, setShareAnchorElement] = useState<HTMLElement | null>(null);
+  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
+  const [submittingCommentPostId, setSubmittingCommentPostId] = useState<string | null>(null);
 
   // Bell, Cross & Dot states
   const [activeThreeDotPostId, setActiveThreeDotPostId] = useState<string | null>(null);
@@ -91,6 +97,8 @@ export default function Feed({
       if (res.ok) {
         const updatedPost = await res.json();
         setPosts(posts.map(p => p.id === postId ? updatedPost : p));
+      } else if (res.status === 401 || res.status === 403) {
+        invalidateSession();
       } else {
         toggleLikeFallback(postId);
       }
@@ -128,6 +136,8 @@ export default function Feed({
         setPosts(posts.map(p => p.id === postId ? updatedPost : p));
         showToast(updatedPost.isReposted ? "Bulletin reposted!" : "Repost removed.");
         addActivity(updatedPost.isReposted ? `Reposted: ${updatedPost.title}` : `Removed repost: ${updatedPost.title}`);
+      } else if (res.status === 401 || res.status === 403) {
+        invalidateSession();
       } else {
         toggleRepostFallback(postId);
       }
@@ -153,9 +163,22 @@ export default function Feed({
   };
 
   // Open the share menu for a post
-  const handleShareClick = (post: Post, e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleShareClick = async (post: Post, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (token) {
+      try {
+        const sessionCheck = await fetch(`${apiBaseUrl}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (sessionCheck.status === 401 || sessionCheck.status === 403) {
+          invalidateSession();
+          return;
+        }
+      } catch {
+        // Keep sharing available during a temporary network interruption.
+      }
+    }
     const url = `${window.location.origin}/posts/${post.id}`;
     setShareUrl(url);
     setShareTitle(post.title);
@@ -169,7 +192,59 @@ export default function Feed({
   const handleCommentsClick = (postId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push(`/posts/${postId}#comments-section`);
+    if (!token) {
+      openAuthModal('login');
+      return;
+    }
+    setActiveCommentPostId((current) => current === postId ? null : postId);
+    setCommentErrors((current) => ({ ...current, [postId]: '' }));
+  };
+
+  const handleSubmitComment = async (postId: string, e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const content = commentDrafts[postId]?.trim();
+    if (!content) {
+      setCommentErrors((current) => ({ ...current, [postId]: 'Write a comment before posting.' }));
+      return;
+    }
+    if (!token) {
+      openAuthModal('login');
+      return;
+    }
+
+    setSubmittingCommentPostId(postId);
+    setCommentErrors((current) => ({ ...current, [postId]: '' }));
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/posts/${postId}/comment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ author: user?.name || 'User', content }),
+      });
+      if (response.status === 401 || response.status === 403) {
+        invalidateSession();
+        return;
+      }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.detail || 'Could not post your comment. Please try again.');
+      }
+
+      setPosts((current) => current.map((post) => post.id === postId ? result : post));
+      setCommentDrafts((current) => ({ ...current, [postId]: '' }));
+      setActiveCommentPostId(null);
+      showToast('Comment posted.');
+    } catch (error) {
+      setCommentErrors((current) => ({
+        ...current,
+        [postId]: error instanceof Error ? error.message : 'Could not post your comment. Please try again.',
+      }));
+    } finally {
+      setSubmittingCommentPostId(null);
+    }
   };
 
   // Handle Card Click
@@ -307,17 +382,26 @@ export default function Feed({
     addActivity(`Submitted hide reason for post ID ${postId}: ${reason}`);
   };
 
-  const visiblePosts = posts.filter(post => 
-    !blockedAuthors.includes(post.author) && 
-    !mutedAuthors.includes(post.author) &&
-    !reportedPostIds.includes(post.id) &&
-    (
-      post.author.toUpperCase().includes('SHOBIN') ||
-      post.author.toUpperCase().includes('ADMIN') ||
-      post.author.toUpperCase().includes('PULSE') ||
-      post.title.toUpperCase().includes('BULLETIN')
-    )
-  );
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+  const visiblePosts = posts.filter(post => {
+    const matchesSearch = !normalizedSearch || [
+      post.title,
+      post.author,
+      post.content,
+      ...(post.contentBlocks || []).flatMap((block) => block.type === 'text' ? [block.text] : []),
+    ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
+
+    return matchesSearch &&
+      !blockedAuthors.includes(post.author) &&
+      !mutedAuthors.includes(post.author) &&
+      !reportedPostIds.includes(post.id) &&
+      (
+        post.author.toUpperCase().includes('SHOBIN') ||
+        post.author.toUpperCase().includes('ADMIN') ||
+        post.author.toUpperCase().includes('PULSE') ||
+        post.title.toUpperCase().includes('BULLETIN')
+      );
+  });
 
   return (
     <div className="space-y-6 relative">
@@ -553,11 +637,12 @@ export default function Feed({
                     {/* Comment Button */}
                     <button 
                       onClick={(e) => handleCommentsClick(post.id, e)}
-                      className="flex items-center space-x-1.5 hover:text-[#42E8FF] transition-colors group/btn"
+                      className={`flex items-center space-x-1.5 transition-colors group/btn ${activeCommentPostId === post.id ? 'text-[#42E8FF]' : 'hover:text-[#42E8FF]'}`}
                       title="Comments"
+                      aria-expanded={activeCommentPostId === post.id}
                     >
                       <MessageSquare className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
-                      <span>{post.comments_count}</span>
+                      <span>{Array.isArray(post.comments) ? post.comments.length : post.comments_count}</span>
                     </button>
 
                     {/* Repost Button */}
@@ -585,6 +670,37 @@ export default function Feed({
                       </button>
                     </div>
                   </div>
+
+                  {activeCommentPostId === post.id && (
+                    <form
+                      onSubmit={(e) => handleSubmitComment(post.id, e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="space-y-2 border-t border-white/10 pt-4"
+                    >
+                      <label htmlFor={`comment-${post.id}`} className="sr-only">Write a comment</label>
+                      <textarea
+                        id={`comment-${post.id}`}
+                        value={commentDrafts[post.id] || ''}
+                        onChange={(e) => setCommentDrafts((current) => ({ ...current, [post.id]: e.target.value }))}
+                        placeholder="Write a comment..."
+                        rows={3}
+                        maxLength={2000}
+                        autoFocus
+                        className="w-full resize-y rounded-xl border border-white/10 bg-[#0D1624] px-4 py-3 text-sm text-white outline-none placeholder:text-[#778194] focus:border-[#42E8FF]"
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p role="alert" className="text-xs text-rose-400">{commentErrors[post.id]}</p>
+                        <button
+                          type="submit"
+                          disabled={submittingCommentPostId === post.id || !commentDrafts[post.id]?.trim()}
+                          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2D9CFF] to-[#42E8FF] px-4 py-2 text-sm font-bold text-[#07111e] transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {submittingCommentPostId === post.id ? 'Posting…' : 'Post comment'}
+                          <Send className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
                 </div>
               </div>

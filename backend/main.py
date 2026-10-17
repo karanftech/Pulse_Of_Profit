@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from database import mongo_manager, init_db
-from auth import hash_password, verify_password, create_access_token, get_current_user_email, require_current_user_email, verify_admin_token
+from auth import hash_password, verify_password, create_access_token, require_current_user_email, verify_admin_token, ensure_user_not_blocked
 
 app = FastAPI(title="Pulse of Profit API")
 
@@ -215,6 +215,11 @@ def email_auth(req: EmailAuthRequest):
                 break
 
     if found_user:
+        if found_user.get("is_blocked", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been blocked. Contact support for help.",
+            )
         # Existing user - login
         token = create_access_token({"sub": email})
         user_profile = Profile(
@@ -271,6 +276,7 @@ def register(user_in: UserRegister):
                 break
 
     if found_user:
+        ensure_user_not_blocked(email)
         # User already exists: Log them in seamlessly
         token = create_access_token({"sub": email})
         user_profile = Profile(
@@ -328,6 +334,9 @@ def login(user_in: UserLogin):
                 found_user = u
                 break
 
+    if found_user:
+        ensure_user_not_blocked(email)
+
     if not found_user:
         # If user not registered yet, auto-register them
         display_name = email.split("@")[0].capitalize()
@@ -364,9 +373,7 @@ def login(user_in: UserLogin):
 
 
 @app.get("/api/auth/me", response_model=Profile)
-def get_me(user_email: Optional[str] = Depends(get_current_user_email)):
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+def get_me(user_email: str = Depends(require_current_user_email)):
     
     if mongo_manager.is_connected and mongo_manager.db is not None:
         users_col = mongo_manager.db["users"]
@@ -475,6 +482,7 @@ def format_post_dict(doc: dict) -> dict:
     media_list = doc.get("mediaUrls", [])
     if not media_list and doc.get("imageUrl"):
         media_list = [doc.get("imageUrl")]
+    comments = doc.get("comments") or []
         
     return {
         "id": str(doc.get("id", doc.get("_id"))),
@@ -484,8 +492,8 @@ def format_post_dict(doc: dict) -> dict:
         "content": doc.get("content", ""),
         "likes": doc.get("likes", 0),
         "reposts": doc.get("reposts", 0),
-        "comments_count": doc.get("comments_count", len(doc.get("comments", []))),
-        "comments": doc.get("comments", []),
+        "comments_count": len(comments),
+        "comments": comments,
         "imageUrl": doc.get("imageUrl"),
         "mediaUrls": media_list,
         "contentBlocks": doc.get("contentBlocks"),
@@ -769,6 +777,8 @@ def vyavasthapak_login(login_in: AdminLogin):
                     
     if not found_admin or not verify_password(login_in.passcode, found_admin["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid admin credentials or passcode")
+
+    ensure_user_not_blocked(found_admin["email"])
         
     token = create_access_token({"sub": found_admin["email"], "role": "admin"})
     return {
@@ -791,13 +801,13 @@ def vyavasthapak_stats(admin_user: str = Depends(verify_admin_token)):
         users_count = users_col.count_documents({})
         for p in posts_col.find():
             total_likes += p.get("likes", 0)
-            total_comments += p.get("comments_count", len(p.get("comments", [])))
+            total_comments += len(p.get("comments") or [])
     else:
         posts_count = len(mongo_manager.in_memory_posts)
         users_count = len(mongo_manager.in_memory_users)
         for p in mongo_manager.in_memory_posts:
             total_likes += p.get("likes", 0)
-            total_comments += p.get("comments_count", len(p.get("comments", [])))
+            total_comments += len(p.get("comments") or [])
             
     reports_count = len(getattr(mongo_manager, "in_memory_reports", []))
 

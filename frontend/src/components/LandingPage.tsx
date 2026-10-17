@@ -28,15 +28,9 @@ const highlights = [
 ];
 
 export default function LandingPage({ onExplore, onSignIn }: LandingPageProps) {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setReady(true), 3000);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#05080d] text-white selection:bg-[#42E8FF] selection:text-black">
+    <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white selection:bg-[#42E8FF] selection:text-black">
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <motion.div
           className="absolute -left-40 top-[-12rem] h-[32rem] w-[32rem] rounded-full bg-cyan-400/15 blur-[120px]"
@@ -90,11 +84,11 @@ export default function LandingPage({ onExplore, onSignIn }: LandingPageProps) {
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <button onClick={onExplore} disabled={!ready} className="group inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#42E8FF] to-[#4DFFB8] px-6 text-sm font-extrabold text-[#041015] shadow-[0_12px_38px_rgba(66,232,255,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_46px_rgba(66,232,255,0.3)] disabled:cursor-wait disabled:opacity-65">
+            <button onClick={onExplore} className="group inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#42E8FF] to-[#4DFFB8] px-6 text-sm font-extrabold text-[#041015] shadow-[0_12px_38px_rgba(66,232,255,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_46px_rgba(66,232,255,0.3)] cursor-pointer">
               Explore the bulletins
               <ArrowDown className="h-4 w-4 transition-transform group-hover:translate-y-0.5" />
             </button>
-            <button onClick={onSignIn} disabled={!ready} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-6 text-sm font-bold text-white transition hover:border-white/30 hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-50">
+            <button onClick={onSignIn} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-6 text-sm font-bold text-white transition hover:border-white/30 hover:bg-white/[0.08] cursor-pointer">
               Sign in or join <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -102,24 +96,24 @@ export default function LandingPage({ onExplore, onSignIn }: LandingPageProps) {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 32, rotateX: 5 }} animate={{ opacity: 1, y: 0, rotateX: 0 }} transition={{ duration: 0.9, delay: 0.18 }} className="relative mx-auto w-full max-w-xl" style={{ perspective: 1000 }}>
-          <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }} className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b111b]/85 p-5 shadow-[0_32px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-7">
+          <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }} className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/[0.12] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.25)] backdrop-blur-[2px] sm:p-7">
             <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[#42E8FF]/80 to-transparent" />
-            <div className="mb-7 flex items-center justify-between border-b border-white/[0.08] pb-5">
+            <div className="mb-7 flex items-center justify-between border-b border-white/[0.06] pb-5">
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-[#42E8FF]/10 p-2.5 text-[#42E8FF]"><Radio className="h-5 w-5" /></div>
-                <div><p className="text-sm font-bold">The daily briefing</p><p className="mt-1 text-[11px] text-slate-500">MARKET SIGNAL · COMMUNITY</p></div>
+                <div className="rounded-xl bg-[#42E8FF]/10 border border-[#42E8FF]/20 p-2.5 text-[#42E8FF] shadow-[0_0_15px_rgba(66,232,255,0.15)]"><Radio className="h-5 w-5" /></div>
+                <div><p className="text-sm font-bold">The daily briefing</p><p className="mt-1 text-[11px] text-slate-400">MARKET SIGNAL · COMMUNITY</p></div>
               </div>
-              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">In focus</span>
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">In focus</span>
             </div>
             <div className="space-y-3">
               {highlights.map(({ icon: Icon, title, detail }, index) => (
-                <motion.div key={title} initial={{ opacity: 0, x: 28, scale: 0.97 }} animate={{ opacity: 1, x: 0, scale: 1 }} whileHover={{ x: 6, scale: 1.015 }} transition={{ delay: 0.45 + index * 0.16, type: 'spring', stiffness: 180, damping: 20 }} className="group flex gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 transition-colors hover:border-[#42E8FF]/20 hover:bg-[#42E8FF]/[0.04]">
-                  <motion.div whileHover={{ rotate: 8, scale: 1.1 }} transition={{ type: 'spring', stiffness: 300, damping: 14 }} className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#42E8FF]/15 to-emerald-300/10 text-[#8cf6de]"><Icon className="h-[18px] w-[18px]" /></motion.div>
-                  <div><h2 className="text-sm font-bold text-slate-100">{title}</h2><p className="mt-1.5 text-xs leading-5 text-slate-400">{detail}</p></div>
+                <motion.div key={title} initial={{ opacity: 0, x: 28, scale: 0.97 }} animate={{ opacity: 1, x: 0, scale: 1 }} whileHover={{ x: 6, scale: 1.015 }} transition={{ delay: 0.45 + index * 0.16, type: 'spring', stiffness: 180, damping: 20 }} className="group flex gap-4 rounded-2xl border border-white/[0.06] bg-black/[0.10] backdrop-blur-[1px] p-4 transition-all hover:border-[#42E8FF]/30 hover:bg-[#42E8FF]/[0.06]">
+                  <motion.div whileHover={{ rotate: 8, scale: 1.1 }} transition={{ type: 'spring', stiffness: 300, damping: 14 }} className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#42E8FF]/15 to-emerald-300/10 text-[#8cf6de] border border-[#42E8FF]/20"><Icon className="h-[18px] w-[18px]" /></motion.div>
+                  <div><h2 className="text-sm font-bold text-slate-100">{title}</h2><p className="mt-1.5 text-xs leading-5 text-slate-300">{detail}</p></div>
                 </motion.div>
               ))}
             </div>
-            <div className="mt-6 flex items-center justify-between rounded-2xl bg-gradient-to-r from-[#42E8FF]/10 to-emerald-300/[0.06] px-4 py-3.5">
+            <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/[0.06] bg-gradient-to-r from-[#42E8FF]/[0.06] to-emerald-300/[0.03] backdrop-blur-[1px] px-4 py-3.5">
               <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8cf6de]">Stay curious</p><p className="mt-1 text-xs text-slate-300">Make every market day count.</p></div>
               <motion.div animate={{ rotate: [0, 8, -8, 0] }} transition={{ duration: 4, repeat: Infinity }}><Sparkles className="h-5 w-5 text-[#42E8FF]" /></motion.div>
             </div>

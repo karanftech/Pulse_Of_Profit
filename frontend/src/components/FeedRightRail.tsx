@@ -1,8 +1,18 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
-export default function FeedRightRail({ onSearchClick }: { onSearchClick: () => void }) {
+interface FeedRightRailProps {
+  searchQuery?: string;
+  setSearchQuery?: (query: string) => void;
+  onSearchClick?: () => void;
+}
+
+export default function FeedRightRail({
+  searchQuery = '',
+  setSearchQuery,
+  onSearchClick
+}: FeedRightRailProps) {
   const sampleSubscriptions = [
     { name: 'Market Pulse', initials: 'MP', colors: 'from-cyan-400 to-blue-700' },
     { name: 'Alpha Insights', initials: 'AI', colors: 'from-amber-300 to-orange-600' },
@@ -27,10 +37,27 @@ export default function FeedRightRail({ onSearchClick }: { onSearchClick: () => 
       </section>
 
       <aside className="sticky top-0 col-start-3 row-start-1 hidden h-screen flex-col gap-5 py-7 lg:flex">
-        <button onClick={onSearchClick} className="flex h-[52px] w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 text-left text-sm text-slate-500 transition hover:border-white/20 hover:text-slate-300">
-          <Search className="h-5 w-5" />
-          <span>Search bulletins</span>
-        </button>
+        <div className="relative flex h-[52px] w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 transition-all focus-within:border-[#42E8FF]/50 focus-within:bg-[#0D1624] focus-within:shadow-[0_0_20px_rgba(66,232,255,0.12)]">
+          <Search className="h-5 w-5 shrink-0 text-slate-400 transition-colors group-focus-within:text-[#42E8FF]" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery?.(e.target.value)}
+            placeholder="Search bulletins..."
+            aria-label="Search bulletins"
+            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none [&::-webkit-search-cancel-button]:hidden"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery?.('')}
+              className="rounded-lg p-1 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div className="min-h-[184px] rounded-2xl border border-white/10 bg-white/[0.035] p-4" aria-label="Subscriptions">
           <h2 className="mb-4 text-sm font-semibold text-white">Subscriptions</h2>
           <div className="flex items-start gap-2 xl:gap-5">

@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PinnedPost from '@/components/PinnedPost';
 import Feed from '@/components/Feed';
 import ProfileSidebar from '@/components/ProfileSidebar';
 import LandingPage from '@/components/LandingPage';
 import FeedSidebar from '@/components/FeedSidebar';
 import FeedRightRail from '@/components/FeedRightRail';
-import { ChevronDown, Newspaper } from 'lucide-react';
+import { ChevronDown, Newspaper, Search, X } from 'lucide-react';
 
 import { API_BASE_URL, useAuth } from '@/context/AuthContext';
 
@@ -22,7 +22,7 @@ const fallbackPosts: Post[] = [
     author: "SHOBIN SHEIKH",
     content: "Welcome to today's Pulse of Profit Bulletin. Telegram channel link: https://t.me/PulseOfProfitnews. We cover the latest market updates, stock analyses, and financial news daily.",
     likes: 12,
-    comments_count: 2,
+    comments_count: 0,
     comments: [],
     isLiked: false
   },
@@ -33,7 +33,7 @@ const fallbackPosts: Post[] = [
     author: "SHOBIN SHEIKH",
     content: "“The next global order may be built by ‘connectors’ in a fragmented world. This opens up an opportunity for India to be a ‘connector economy’.” ~ Anand Mahindra, Chairman, M&M. Check out the Chairman's Message brochure page attached below for a detailed overview.",
     likes: 3,
-    comments_count: 2,
+    comments_count: 0,
     comments: [],
     imageUrl: "/chairman_message.png",
     isLiked: false
@@ -57,6 +57,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profilePanel, setProfilePanel] = useState<'main' | 'settings' | 'support'>('main');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Synchronized States
   const [subscribedAuthors, setSubscribedAuthors] = useState<string[]>([]);
@@ -224,10 +227,18 @@ export default function Home() {
     loadPosts();
   }, [customPosts.length, token]);
 
-  // Focus the bulletin feed from Explore/search shortcuts.
-  const handleSearchClick = () => {
+  // Explore scrolls to the feed; search opens a usable post search field.
+  const handleExploreClick = () => {
     document.getElementById('bulletins-feed')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const handleSearchClick = () => setIsSearchOpen(true);
+
+  useEffect(() => {
+    if (!isSearchOpen) return;
+    searchInputRef.current?.focus();
+    document.getElementById('bulletins-feed')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [isSearchOpen]);
 
   // Pinned post (ID 1)
   const pinnedPost = posts.find(p => p.id === "1") || fallbackPosts[0];
@@ -243,23 +254,49 @@ export default function Home() {
   }
 
   return (
-    <div id="top" className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#42E8FF] selection:text-black">
+    <div id="top" className="min-h-screen bg-transparent text-white font-sans selection:bg-[#42E8FF] selection:text-black">
       <div className="mx-auto grid min-h-screen w-full grid-cols-1 gap-6 px-4 lg:grid-cols-[180px_minmax(0,1fr)_260px] lg:gap-4 xl:grid-cols-[220px_minmax(0,1fr)_320px] xl:gap-6 xl:justify-between 2xl:grid-cols-[250px_710px_465px] 2xl:gap-5 2xl:px-8">
         <FeedSidebar
           notifications={notifications}
           setNotifications={saveNotifications}
           onProfileClick={() => { setProfilePanel('main'); setIsProfileOpen(true); }}
-          onExploreClick={handleSearchClick}
+          onExploreClick={handleExploreClick}
           onSettingsClick={() => { setProfilePanel('settings'); setIsProfileOpen(true); }}
           onSupportClick={() => { setProfilePanel('support'); setIsProfileOpen(true); }}
           onSearchClick={handleSearchClick}
           addActivity={addActivity}
         />
 
-        <FeedRightRail onSearchClick={handleSearchClick} />
+        <FeedRightRail
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
 
       {/* NEWS & RESEARCH (PULSE OF PROFIT BULLETINS FEED) */}
       <section id="bulletins-feed" className="w-full min-w-0 pb-28 pt-2 sm:pt-7 lg:col-start-2 lg:row-start-1 lg:py-7 lg:pb-7">
+
+        {isSearchOpen && (
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-[#42E8FF]/30 bg-[#0D1624] px-4 py-3 shadow-[0_0_24px_rgba(66,232,255,0.08)] lg:hidden">
+            <Search className="h-5 w-5 shrink-0 text-[#42E8FF]" />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search posts, authors, or topics..."
+              aria-label="Search posts, authors, or topics"
+              className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+            />
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }}
+              aria-label="Close search"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
         
         {/* Feed Title */}
         <div className="mb-3 flex items-center gap-1 text-sm text-slate-400 sm:hidden">
@@ -283,7 +320,7 @@ export default function Home() {
         ) : (
           <div className="space-y-8">
             {/* Pinned Featured Bulletin */}
-            {pinnedPost && !blockedAuthors.includes(pinnedPost.author) && !mutedAuthors.includes(pinnedPost.author) && (
+            {!searchQuery.trim() && pinnedPost && !blockedAuthors.includes(pinnedPost.author) && !mutedAuthors.includes(pinnedPost.author) && (
               <div className="hidden sm:block">
               <PinnedPost 
                 id={pinnedPost.id}
@@ -311,6 +348,7 @@ export default function Home() {
               reportedPostIds={reportedPostIds}
               setReportedPostIds={saveReportedPostIds}
               addActivity={addActivity}
+              searchQuery={searchQuery}
             />
           </div>
         )}

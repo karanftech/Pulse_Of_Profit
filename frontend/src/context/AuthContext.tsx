@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
   email: string;
@@ -25,15 +26,30 @@ interface AuthContextType {
   register: (name?: string, mob_no?: string, email?: string, password?: string) => Promise<void>;
   authenticateWithEmail: (email: string) => Promise<void>;
   updateUserProfile: (updated: Partial<UserProfile>) => void;
+  invalidateSession: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://pulse-of-profit.onrender.com').replace(/\/$/, '');
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
+      const envUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!envUrl || envUrl.includes('onrender.com')) {
+        return 'http://localhost:8000';
+      }
+    }
+  }
+  return (process.env.NEXT_PUBLIC_API_URL || 'https://pulse-of-profit.onrender.com').replace(/\/$/, '');
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 const SESSION_DURATION_MS = 48 * 60 * 1000;
 
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -106,6 +122,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [token]);
 
+  // Check account status while the site is open so an admin block takes effect promptly.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const validateAccount = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled && (response.status === 401 || response.status === 403)) clearSession();
+      } catch {
+        // A temporary network failure does not invalidate a cached session.
+      }
+    };
+    const interval = window.setInterval(validateAccount, 15000);
+    window.addEventListener('focus', validateAccount);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', validateAccount);
+    };
+  }, [token]);
+
   const fetchUserProfile = async (jwtToken: string) => {
     // Only server-issued JWTs may unlock protected routes.
     if (jwtToken.startsWith('email_') || jwtToken.startsWith('offline_')) {
@@ -125,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data);
         localStorage.setItem('bts_user', JSON.stringify(data));
         setIsAuthModalOpen(false);
-      } else if (res.status === 401) {
+      } else if (res.status === 401 || res.status === 403) {
         clearSession();
       } else {
         // If saved user profile exists in localStorage, maintain session
@@ -162,7 +201,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const openAuthModal = (mode: 'login' | 'register' = 'login') => {
     setAuthMode(mode);
-    setIsAuthModalOpen(true);
+    setIsAuthModalOpen(false);
+    if (mode === 'register') {
+      router.push('/register');
+    } else {
+      router.push('/login');
+    }
   };
 
   const closeAuthModal = () => {
@@ -174,6 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const authenticateWithEmail = async (email: string) => {
     const trimmedEmail = email.trim().toLowerCase();
+    const baseUrl = getApiBaseUrl();
 
     // Helper to log user in directly on client
     const loginDirectly = (profileData: Partial<UserProfile>, tokenStr: string) => {
@@ -188,17 +233,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       startSession(tokenStr, existingUser);
     };
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+
     try {
       // 1. Try email-auth endpoint first
-      let res = await fetch(`${API_BASE_URL}/api/auth/email-auth`, {
+      let res = await fetch(`${baseUrl}/api/auth/email-auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail })
+        body: JSON.stringify({ email: trimmedEmail }),
+        signal: controller.signal
       });
 
       // 2. If endpoint not deployed yet (404), fallback to register endpoint
       if (res.status === 404) {
-        res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        res = await fetch(`${baseUrl}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -206,9 +255,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             mob_no: '',
             email: trimmedEmail,
             password: ''
-          })
+          }),
+          signal: controller.signal
         });
       }
+
+      window.clearTimeout(timeout);
 
       if (res.ok) {
         const data = await res.json();
@@ -220,6 +272,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.detail || 'Authentication failed');
     } catch (err: any) {
+      window.clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        throw new Error('Server request timed out. Please verify that your backend server is running and try again.');
+      }
       throw err;
     }
   };
@@ -325,7 +381,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         authenticateWithEmail,
-        updateUserProfile
+        updateUserProfile,
+        invalidateSession: clearSession
       }}
     >
       {children}
